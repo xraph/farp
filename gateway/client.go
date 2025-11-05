@@ -300,7 +300,7 @@ func (c *Client) fetchSchema(ctx context.Context, descriptor *farp.SchemaDescrip
 // 2. Schema descriptor's Location.URL (extract base URL from full URL)
 // 3. manifest.Instance.Address (convert to http://host:port)
 func (c *Client) getBaseURL(manifest *farp.SchemaManifest, schemaMap map[string]any, schemaDesc *farp.SchemaDescriptor) string {
-	// 1. Try OpenAPI schema's servers array
+	// Try OpenAPI schema's servers array
 	if servers, ok := schemaMap["servers"].([]any); ok && len(servers) > 0 {
 		if server, ok := servers[0].(map[string]any); ok {
 			if serverURL, ok := server["url"].(string); ok && serverURL != "" {
@@ -310,7 +310,7 @@ func (c *Client) getBaseURL(manifest *farp.SchemaManifest, schemaMap map[string]
 		}
 	}
 
-	// 2. Try schema descriptor's Location.URL
+	// Try schema descriptor's Location.URL
 	if schemaDesc != nil && schemaDesc.Location.Type == farp.LocationTypeHTTP && schemaDesc.Location.URL != "" {
 		// Extract base URL from full URL
 		parsedURL, err := url.Parse(schemaDesc.Location.URL)
@@ -319,23 +319,25 @@ func (c *Client) getBaseURL(manifest *farp.SchemaManifest, schemaMap map[string]
 			baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 			if parsedURL.Scheme == "" {
 				// If no scheme, default to http
-				baseURL = fmt.Sprintf("http://%s", parsedURL.Host)
+				baseURL = "http://" + parsedURL.Host
 			}
+
 			return baseURL
 		}
 	}
 
-	// 3. Try manifest Instance.Address
+	// Try manifest Instance.Address
 	if manifest.Instance != nil && manifest.Instance.Address != "" {
 		address := manifest.Instance.Address
 		// If address doesn't have a scheme, default to http
 		if !strings.Contains(address, "://") {
-			return fmt.Sprintf("http://%s", address)
+			return "http://" + address
 		}
+
 		return address
 	}
 
-	// 4. Fallback: construct default URL from service name (backward compatibility)
+	// Fallback: construct default URL from service name (backward compatibility)
 	// This maintains compatibility with tests and cases where no URL is provided
 	return fmt.Sprintf("http://%s:8080", manifest.ServiceName)
 }

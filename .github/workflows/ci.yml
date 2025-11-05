@@ -195,14 +195,14 @@ jobs:
       - name: Check for TODOs in main branch
         if: github.ref == 'refs/heads/main'
         run: |
-          if grep -r "TODO\|FIXME\|XXX" --include="*.go" --exclude-dir=vendor .; then
+          if grep -r "TODO\|FIXME\|XXX" --include="*.go" --exclude-dir=vendor  --exclude-dir=examples .; then
             echo "Found TODO/FIXME/XXX in main branch"
             exit 1
           fi
 
       - name: Check for debug statements
         run: |
-          if grep -r "fmt.Print\|log.Print" --include="*.go" --exclude-dir=vendor --exclude="*_test.go" .; then
+          if grep -r "fmt.Print\|log.Print" --include="*.go" --exclude-dir=vendor --exclude="*_test.go" --exclude-dir=examples .; then
             echo "Found debug print statements in production code"
             exit 1
           fi

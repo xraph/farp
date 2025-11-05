@@ -111,6 +111,7 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 	// Merge info - prefer base but fill in missing fields from generated
 	if baseInfo, ok := base["info"].(map[string]any); ok {
 		resultInfo := maps.Clone(baseInfo)
+
 		if generatedInfo, ok := generated["info"].(map[string]any); ok {
 			// Merge info fields, base takes precedence
 			for k, v := range generatedInfo {
@@ -119,6 +120,7 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 				}
 			}
 		}
+
 		result["info"] = resultInfo
 	} else if generatedInfo, ok := generated["info"].(map[string]any); ok {
 		result["info"] = generatedInfo
@@ -129,9 +131,11 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 	if baseChannels, ok := base["channels"].(map[string]any); ok {
 		maps.Copy(resultChannels, baseChannels)
 	}
+
 	if generatedChannels, ok := generated["channels"].(map[string]any); ok {
 		maps.Copy(resultChannels, generatedChannels)
 	}
+
 	result["channels"] = resultChannels
 
 	// Merge operations - combine both sets (base operations first, then generated)
@@ -139,9 +143,11 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 	if baseOperations, ok := base["operations"].(map[string]any); ok {
 		maps.Copy(resultOperations, baseOperations)
 	}
+
 	if generatedOperations, ok := generated["operations"].(map[string]any); ok {
 		maps.Copy(resultOperations, generatedOperations)
 	}
+
 	result["operations"] = resultOperations
 
 	// Copy other fields from generated schema if not present in base

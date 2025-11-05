@@ -111,6 +111,7 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 	// Merge info - prefer base but fill in missing fields from generated
 	if baseInfo, ok := base["info"].(map[string]any); ok {
 		resultInfo := maps.Clone(baseInfo)
+
 		if generatedInfo, ok := generated["info"].(map[string]any); ok {
 			// Merge info fields, base takes precedence
 			for k, v := range generatedInfo {
@@ -119,6 +120,7 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 				}
 			}
 		}
+
 		result["info"] = resultInfo
 	} else if generatedInfo, ok := generated["info"].(map[string]any); ok {
 		result["info"] = generatedInfo
@@ -129,14 +131,17 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 	if basePaths, ok := base["paths"].(map[string]any); ok {
 		maps.Copy(resultPaths, basePaths)
 	}
+
 	if generatedPaths, ok := generated["paths"].(map[string]any); ok {
 		maps.Copy(resultPaths, generatedPaths)
 	}
+
 	result["paths"] = resultPaths
 
 	// Merge components - combine both sets
 	if baseComponents, ok := base["components"].(map[string]any); ok {
 		resultComponents := maps.Clone(baseComponents)
+
 		if generatedComponents, ok := generated["components"].(map[string]any); ok {
 			// Merge each component type
 			for componentType, componentValue := range generatedComponents {
@@ -153,6 +158,7 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 				}
 			}
 		}
+
 		result["components"] = resultComponents
 	} else if generatedComponents, ok := generated["components"].(map[string]any); ok {
 		result["components"] = generatedComponents
@@ -162,9 +168,12 @@ func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
 	if baseServers, ok := base["servers"].([]any); ok {
 		resultServers := make([]any, len(baseServers))
 		copy(resultServers, baseServers)
+
 		if generatedServers, ok := generated["servers"].([]any); ok {
+			//nolint:makezero // We need to append to a pre-allocated slice that was copied from base
 			resultServers = append(resultServers, generatedServers...)
 		}
+
 		result["servers"] = resultServers
 	} else if generatedServers, ok := generated["servers"].([]any); ok {
 		result["servers"] = generatedServers
