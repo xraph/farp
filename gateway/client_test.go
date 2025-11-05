@@ -3,6 +3,8 @@ package gateway
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,9 +13,10 @@ import (
 
 // Mock registry for testing
 type mockRegistry struct {
-	manifests       map[string]*farp.SchemaManifest
-	schemas         map[string]interface{}
-	watchHandler    farp.ManifestChangeHandler
+	mu                 sync.RWMutex
+	manifests          map[string]*farp.SchemaManifest
+	schemas            map[string]interface{}
+	watchHandler       farp.ManifestChangeHandler
 	schemaWatchHandler farp.SchemaChangeHandler
 }
 
@@ -76,13 +79,17 @@ func (m *mockRegistry) DeleteSchema(ctx context.Context, path string) error {
 }
 
 func (m *mockRegistry) WatchManifests(ctx context.Context, serviceName string, onChange farp.ManifestChangeHandler) error {
+	m.mu.Lock()
 	m.watchHandler = onChange
+	m.mu.Unlock()
 	<-ctx.Done()
 	return nil
 }
 
 func (m *mockRegistry) WatchSchemas(ctx context.Context, path string, onChange farp.SchemaChangeHandler) error {
+	m.mu.Lock()
 	m.schemaWatchHandler = onChange
+	m.mu.Unlock()
 	<-ctx.Done()
 	return nil
 }
@@ -97,8 +104,12 @@ func (m *mockRegistry) Health(ctx context.Context) error {
 
 // Trigger a manifest change event
 func (m *mockRegistry) triggerManifestEvent(eventType farp.EventType, manifest *farp.SchemaManifest) {
-	if m.watchHandler != nil {
-		m.watchHandler(&farp.ManifestEvent{
+	m.mu.RLock()
+	handler := m.watchHandler
+	m.mu.RUnlock()
+	
+	if handler != nil {
+		handler(&farp.ManifestEvent{
 			Type:      eventType,
 			Manifest:  manifest,
 			Timestamp: time.Now().Unix(),
@@ -155,14 +166,14 @@ func TestClient_WatchServices(t *testing.T) {
 	registry.RegisterManifest(context.Background(), manifest)
 
 	// Watch for changes
-	changeCallCount := 0
+	var changeCallCount int32
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
 		err := client.WatchServices(ctx, "test-service", func(routes []ServiceRoute) {
-			changeCallCount++
-			if changeCallCount == 1 {
+			count := atomic.AddInt32(&changeCallCount, 1)
+			if count == 1 {
 				// First call should be initial load
 				if len(routes) < 1 {
 					t.Errorf("expected at least 1 route, got %d", len(routes))
@@ -184,8 +195,8 @@ func TestClient_WatchServices(t *testing.T) {
 	cancel()
 	time.Sleep(50 * time.Millisecond)
 
-	if changeCallCount < 2 {
-		t.Errorf("expected at least 2 change callbacks, got %d", changeCallCount)
+	if atomic.LoadInt32(&changeCallCount) < 2 {
+		t.Errorf("expected at least 2 change callbacks, got %d", atomic.LoadInt32(&changeCallCount))
 	}
 }
 
