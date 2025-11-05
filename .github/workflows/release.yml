@@ -101,7 +101,7 @@ jobs:
           name: go-example-binary
           path: examples/basic/farp-basic-example
 
-  # Rust library release (future)
+  # Rust library release
   rust-release:
     name: Rust Release Artifacts
     runs-on: ubuntu-latest
@@ -112,6 +112,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Check if Cargo.toml exists
@@ -127,6 +128,12 @@ jobs:
         if: steps.check_cargo.outputs.exists == 'true'
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies
+        if: steps.check_cargo.outputs.exists == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: farp-rust
+
       - name: Get latest tag
         if: steps.check_cargo.outputs.exists == 'true'
         id: get_tag
@@ -136,35 +143,66 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "version=${TAG#v}" >> $GITHUB_OUTPUT
 
-      - name: Update Cargo.toml version
+      - name: Verify Cargo.toml version matches tag
         if: steps.check_cargo.outputs.exists == 'true'
         working-directory: farp-rust
         run: |
-          VERSION="${{ steps.get_tag.outputs.version }}"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          CARGO_VERSION=$(grep "^version" Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          TAG_VERSION="${{ steps.get_tag.outputs.version }}"
+          echo "Cargo.toml version: $CARGO_VERSION"
+          echo "Git tag version: $TAG_VERSION"
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "ERROR: Version mismatch! Cargo.toml has $CARGO_VERSION but tag is $TAG_VERSION"
+            echo "The semantic-release process should have updated Cargo.toml to match."
+            exit 1
+          fi
 
       - name: Build Rust library
         if: steps.check_cargo.outputs.exists == 'true'
         working-directory: farp-rust
-        run: cargo build --release
+        run: cargo build --release --all-features
 
       - name: Run tests
         if: steps.check_cargo.outputs.exists == 'true'
         working-directory: farp-rust
-        run: cargo test --release
+        run: cargo test --release --all-features
+
+      - name: Build documentation
+        if: steps.check_cargo.outputs.exists == 'true'
+        working-directory: farp-rust
+        run: cargo doc --release --all-features --no-deps
+
+      - name: Check if crates.io token is available
+        id: check_token
+        if: steps.check_cargo.outputs.exists == 'true'
+        run: |
+          if [ -n "${{ secrets.CARGO_REGISTRY_TOKEN }}" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Publish to crates.io
-        if: steps.check_cargo.outputs.exists == 'true' && env.CARGO_REGISTRY_TOKEN != ''
+        if: steps.check_cargo.outputs.exists == 'true' && steps.check_token.outputs.available == 'true'
         working-directory: farp-rust
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          echo "Publishing farp v${{ steps.get_tag.outputs.version }} to crates.io..."
+          cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }} --allow-dirty
         continue-on-error: true
 
-      - name: Upload Rust artifacts
+      - name: Upload Rust library artifacts
         if: steps.check_cargo.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: rust-library
           path: farp-rust/target/release/libfarp*
+
+      - name: Upload documentation artifacts
+        if: steps.check_cargo.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-docs
+          path: farp-rust/target/doc/
 

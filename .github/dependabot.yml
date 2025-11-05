@@ -8,8 +8,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "xraph/farp-maintainers"
     labels:
       - "dependencies"
       - "go"
@@ -25,8 +23,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 10
-    reviewers:
-      - "xraph/farp-maintainers"
     labels:
       - "dependencies"
       - "rust"
@@ -46,8 +42,6 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
-    reviewers:
-      - "xraph/farp-maintainers"
     labels:
       - "dependencies"
       - "ci"
