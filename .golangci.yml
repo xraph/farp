@@ -1,0 +1,118 @@
+run:
+  timeout: 5m
+  tests: true
+  allow-parallel-runners: true
+
+linters:
+  enable:
+    - errcheck        # Check for unchecked errors
+    - gosimple        # Simplify code
+    - govet           # Vet examines Go source code
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Staticcheck is a go vet on steroids
+    - unused          # Check for unused constants, variables, functions
+    - gofmt           # Gofmt checks whether code was gofmt-ed
+    - goimports       # Check import statements are formatted
+    - misspell        # Finds commonly misspelled English words
+    - unconvert       # Remove unnecessary type conversions
+    - unparam         # Reports unused function parameters
+    - gosec           # Inspects source code for security problems
+    - gocritic        # Provides diagnostics that check for bugs, performance and style issues
+    - gocyclo         # Computes and checks the cyclomatic complexity
+    - dupl            # Tool for code clone detection
+    - prealloc        # Finds slice declarations that could potentially be pre-allocated
+    - revive          # Fast, configurable, extensible, flexible, and beautiful linter for Go
+    - bodyclose       # Checks whether HTTP response body is closed successfully
+    - noctx           # Finds sending http request without context.Context
+    - errorlint       # Find code that will cause problems with the error wrapping scheme
+    - goconst         # Finds repeated strings that could be replaced by a constant
+    - godot           # Check if comments end in a period
+    - goprintffuncname # Checks that printf-like functions are named with f at the end
+    - nilerr          # Finds code that returns nil even if it checks that error is not nil
+    - stylecheck      # Stylecheck is a replacement for golint
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable-all: true
+    disable:
+      - shadow # Too aggressive
+
+  gocyclo:
+    min-complexity: 15
+
+  dupl:
+    threshold: 100
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  misspell:
+    locale: US
+
+  unparam:
+    check-exported: true
+
+  gosec:
+    excludes:
+      - G104 # Audit errors not checked - covered by errcheck
+
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - checkPrivateReceivers
+          - sayRepetitiveInsteadOfStutters
+
+  godot:
+    scope: declarations
+    capital: true
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - goconst
+
+    # Exclude known issues in generated files
+    - path: \.pb\.go$
+      linters:
+        - gofmt
+        - goimports
+        - govet
+
+    # Exclude some staticcheck messages
+    - linters:
+        - staticcheck
+      text: "SA9003:"
+
+    # Exclude unparam for main and init functions
+    - linters:
+        - unparam
+      text: "is always.*main"
+
+  # Show all issues from a linter
+  exclude-dirs:
+    - vendor
+    - third_party
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+  sort-results: true
+

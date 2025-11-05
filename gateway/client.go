@@ -1,3 +1,36 @@
+// Package gateway provides a REFERENCE IMPLEMENTATION for API gateway integration with FARP.
+//
+// ⚠️ IMPORTANT: This is NOT production-ready code. It serves as an example/helper
+// to demonstrate how gateways should integrate with FARP.
+//
+// # What This Package Provides
+//
+// - Example of how to watch for manifest changes
+// - Example of how to convert schemas to routes
+// - Example of how to cache schemas
+// - Integration with the merger package
+//
+// # What This Package Does NOT Provide
+//
+// - Complete HTTP client (HTTP schema fetch has TODO)
+// - Production-ready error handling
+// - Gateway-specific route application
+// - Health monitoring
+// - Load balancing logic
+// - Retry logic with exponential backoff
+// - Circuit breaker patterns
+//
+// # For Production Gateways
+//
+// Real gateway implementations (Kong, Traefik, Envoy, custom) should:
+//
+// 1. Implement their own HTTP client to fetch schemas
+// 2. Implement their own service discovery watchers (Consul, etcd, K8s, mDNS)
+// 3. Implement gateway-specific route configuration
+// 4. Add production-ready error handling and observability
+// 5. Use this package as a reference/inspiration, not a dependency
+//
+// See docs/IMPLEMENTATION_RESPONSIBILITIES.md for complete guidance.
 package gateway
 
 import (
@@ -6,23 +39,34 @@ import (
 	"sync"
 
 	"github.com/xraph/farp"
+	"github.com/xraph/farp/merger"
 )
 
-// Client is a reference implementation for API gateway integration
-// It watches for service schema changes and provides conversion utilities
+// Client is a reference implementation for API gateway integration.
+// It demonstrates how to watch for service schema changes and provides conversion utilities.
+//
+// For production use, gateways should implement their own logic tailored to their
+// specific architecture, error handling, and performance requirements.
 type Client struct {
 	registry      farp.SchemaRegistry
 	manifestCache map[string]*farp.SchemaManifest // key: instanceID
 	schemaCache   map[string]interface{}          // key: hash
+	merger        *merger.Merger
 	mu            sync.RWMutex
 }
 
-// NewClient creates a new gateway client
+// NewClient creates a new gateway client with default merger config
 func NewClient(registry farp.SchemaRegistry) *Client {
+	return NewClientWithConfig(registry, merger.DefaultMergerConfig())
+}
+
+// NewClientWithConfig creates a new gateway client with custom merger config
+func NewClientWithConfig(registry farp.SchemaRegistry, mergerConfig merger.MergerConfig) *Client {
 	return &Client{
 		registry:      registry,
 		manifestCache: make(map[string]*farp.SchemaManifest),
 		schemaCache:   make(map[string]interface{}),
+		merger:        merger.NewMerger(mergerConfig),
 	}
 }
 
@@ -263,6 +307,122 @@ func (c *Client) convertGraphQLToRoutes(manifest *farp.SchemaManifest, schema in
 	})
 
 	return routes
+}
+
+// GenerateMergedSchemas generates unified specs for all protocol types from registered services
+func (c *Client) GenerateMergedSchemas(ctx context.Context, serviceName string) (*merger.MultiProtocolResult, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Get all manifests for the service
+	var manifests []*farp.SchemaManifest
+	if serviceName == "" {
+		// Get all services
+		for _, manifest := range c.manifestCache {
+			manifests = append(manifests, manifest)
+		}
+	} else {
+		// Get specific service
+		for _, manifest := range c.manifestCache {
+			if manifest.ServiceName == serviceName {
+				manifests = append(manifests, manifest)
+			}
+		}
+	}
+
+	// Create schema fetcher
+	schemaFetcher := func(hash string) (interface{}, error) {
+		if cached, ok := c.getSchemaFromCache(hash); ok {
+			return cached, nil
+		}
+		// In production, fetch from registry here
+		return nil, fmt.Errorf("schema not in cache: %s", hash)
+	}
+
+	// Create multi-protocol merger
+	multiMerger := merger.NewMultiProtocolMerger(merger.DefaultMergerConfig())
+
+	// Merge all protocols
+	return multiMerger.MergeAll(manifests, schemaFetcher)
+}
+
+// GenerateMergedOpenAPI generates a unified OpenAPI spec from all registered services
+// Deprecated: Use GenerateMergedSchemas for multi-protocol support
+func (c *Client) GenerateMergedOpenAPI(ctx context.Context, serviceName string) (*merger.MergeResult, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Get all manifests for the service
+	var manifests []*farp.SchemaManifest
+	if serviceName == "" {
+		// Get all services
+		for _, manifest := range c.manifestCache {
+			manifests = append(manifests, manifest)
+		}
+	} else {
+		// Get specific service
+		for _, manifest := range c.manifestCache {
+			if manifest.ServiceName == serviceName {
+				manifests = append(manifests, manifest)
+			}
+		}
+	}
+
+	// Build service schemas
+	serviceSchemas := make([]merger.ServiceSchema, 0, len(manifests))
+	for _, manifest := range manifests {
+		// Find OpenAPI schema
+		for _, schemaDesc := range manifest.Schemas {
+			if schemaDesc.Type != farp.SchemaTypeOpenAPI {
+				continue
+			}
+
+			// Fetch the schema
+			var schema interface{}
+			var err error
+
+			if cached, ok := c.getSchemaFromCache(schemaDesc.Hash); ok {
+				schema = cached
+			} else {
+				schema, err = c.fetchSchema(ctx, &schemaDesc)
+				if err != nil {
+					continue
+				}
+				c.cacheSchema(schemaDesc.Hash, schema)
+			}
+
+			serviceSchemas = append(serviceSchemas, merger.ServiceSchema{
+				Manifest: manifest,
+				Schema:   schema,
+			})
+			break // Only one OpenAPI schema per manifest
+		}
+	}
+
+	// Merge schemas
+	return c.merger.Merge(serviceSchemas)
+}
+
+// GetMergedOpenAPIJSON returns the merged OpenAPI spec as JSON
+func (c *Client) GetMergedOpenAPIJSON(ctx context.Context, serviceName string) ([]byte, error) {
+	result, err := c.GenerateMergedOpenAPI(ctx, serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to JSON
+	// Note: In production, you'd use a proper JSON marshaler
+	// For now, return a placeholder
+	return []byte(fmt.Sprintf(`{
+		"openapi": "%s",
+		"info": {
+			"title": "%s",
+			"description": "%s",
+			"version": "%s"
+		},
+		"paths": {},
+		"components": {}
+	}`, result.Spec.OpenAPI, result.Spec.Info.Title, result.Spec.Info.Description, result.Spec.Info.Version)), nil
 }
 
 // getSchemaFromCache retrieves a cached schema by hash

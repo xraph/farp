@@ -435,3 +435,107 @@ func BenchmarkRegistry_GetManifest(b *testing.B) {
 		registry.GetManifest(ctx, manifest.InstanceID)
 	}
 }
+
+func TestRegistry_WatchSchemas(t *testing.T) {
+	registry := NewRegistry()
+	defer registry.Close()
+
+	ctx := context.Background()
+
+	// WatchSchemas is not supported by memory registry - it should return an error
+	err := registry.WatchSchemas(ctx, "/schemas/test", func(event *farp.SchemaEvent) {})
+	if err == nil {
+		t.Error("expected error from WatchSchemas (not supported in memory registry)")
+	}
+}
+
+func TestRegistry_DeleteManifest_WithWatchers(t *testing.T) {
+	registry := NewRegistry()
+	defer registry.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	manifest := farp.NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest.Endpoints.Health = "/health"
+	manifest.UpdateChecksum()
+
+	// Register manifest
+	err := registry.RegisterManifest(context.Background(), manifest)
+	if err != nil {
+		t.Fatalf("RegisterManifest failed: %v", err)
+	}
+
+	eventChan := make(chan *farp.ManifestEvent, 10)
+
+	// Start watching
+	go func() {
+		err := registry.WatchManifests(ctx, "test-service", func(event *farp.ManifestEvent) {
+			eventChan <- event
+		})
+		if err != nil && err != context.DeadlineExceeded {
+			t.Logf("WatchManifests error: %v", err)
+		}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Delete manifest
+	err = registry.DeleteManifest(context.Background(), manifest.InstanceID)
+	if err != nil {
+		t.Fatalf("DeleteManifest failed: %v", err)
+	}
+
+	// Wait for delete event
+	select {
+	case event := <-eventChan:
+		if event.Type != farp.EventTypeRemoved {
+			t.Errorf("expected removed event, got %v", event.Type)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("timeout waiting for delete event")
+	}
+}
+
+func TestRegistry_Close_WithWatchers(t *testing.T) {
+	registry := NewRegistry()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// Start multiple watchers
+	watchersClosed := make(chan bool, 3)
+
+	for i := 0; i < 3; i++ {
+		go func() {
+			err := registry.WatchManifests(ctx, "test-service", func(event *farp.ManifestEvent) {})
+			watchersClosed <- true
+			if err != nil && err != context.DeadlineExceeded {
+				t.Logf("WatchManifests error: %v", err)
+			}
+		}()
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Close registry
+	err := registry.Close()
+	if err != nil {
+		t.Errorf("Close failed: %v", err)
+	}
+
+	// Verify all watchers are closed
+	closedCount := 0
+	for i := 0; i < 3; i++ {
+		select {
+		case <-watchersClosed:
+			closedCount++
+		case <-time.After(500 * time.Millisecond):
+			t.Error("timeout waiting for watcher to close")
+		}
+	}
+
+	if closedCount != 3 {
+		t.Errorf("expected 3 watchers to close, got %d", closedCount)
+	}
+}

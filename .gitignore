@@ -1,3 +1,54 @@
-!docs/
-!README.md
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.exe
+*.dll
+*.test
+*.out
+coverage.out
+*.prof
+
+# Binaries
+examples/*/[!main]*.go.bin
+examples/basic/basic
+farp-example-*
+
+# Rust
+farp-rust/target/
+farp-rust/Cargo.lock
+farp-rust/**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Dependencies
+vendor/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Release artifacts
+dist/
+release/
+
+# Documentation generation
+docs/.generated/
+
+# Exclude all markdown except specific ones
 *.md
+!README.md
+!CONTRIBUTING.md
+!SECURITY.md
+!CHANGELOG.md
+!docs/*.md
+!docs/**/*.md
+!examples/*/README.md
+!.github/**/*.md

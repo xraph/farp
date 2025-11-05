@@ -300,6 +300,21 @@ func TestManifest_JSON(t *testing.T) {
 		t.Error("expected non-empty JSON")
 	}
 
+	// Test ToPrettyJSON
+	prettyData, err := manifest.ToPrettyJSON()
+	if err != nil {
+		t.Fatalf("ToPrettyJSON failed: %v", err)
+	}
+
+	if len(prettyData) == 0 {
+		t.Error("expected non-empty pretty JSON")
+	}
+
+	// Pretty JSON should be longer (has indentation)
+	if len(prettyData) <= len(data) {
+		t.Error("pretty JSON should be longer than compact JSON")
+	}
+
 	// Test FromJSON
 	parsed, err := FromJSON(data)
 	if err != nil {
@@ -312,6 +327,20 @@ func TestManifest_JSON(t *testing.T) {
 
 	if len(parsed.Schemas) != len(manifest.Schemas) {
 		t.Error("parsed manifest has different number of schemas")
+	}
+}
+
+func TestFromJSON_Invalid(t *testing.T) {
+	// Test with invalid JSON
+	_, err := FromJSON([]byte("invalid json"))
+	if err == nil {
+		t.Error("FromJSON should return error for invalid JSON")
+	}
+
+	// Test with empty data
+	_, err = FromJSON([]byte{})
+	if err == nil {
+		t.Error("FromJSON should return error for empty data")
 	}
 }
 
@@ -467,6 +496,139 @@ func TestSchemaLocation_Validate(t *testing.T) {
 				t.Errorf("expected no error, got: %v", err)
 			}
 		})
+	}
+}
+
+func TestValidateSchemaDescriptor_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		descriptor SchemaDescriptor
+		wantErr    bool
+	}{
+		{
+			name: "invalid hash length",
+			descriptor: SchemaDescriptor{
+				Type:        SchemaTypeOpenAPI,
+				SpecVersion: "3.1.0",
+				Location:    SchemaLocation{Type: LocationTypeHTTP, URL: "http://test.com"},
+				ContentType: "application/json",
+				Hash:        "tooshort",
+				Size:        1024,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing content type",
+			descriptor: SchemaDescriptor{
+				Type:        SchemaTypeOpenAPI,
+				SpecVersion: "3.1.0",
+				Location:    SchemaLocation{Type: LocationTypeHTTP, URL: "http://test.com"},
+				Hash:        "1234567890123456789012345678901234567890123456789012345678901234",
+				Size:        1024,
+			},
+			wantErr: true,
+		},
+		{
+			name: "inline without schema",
+			descriptor: SchemaDescriptor{
+				Type:        SchemaTypeOpenAPI,
+				SpecVersion: "3.1.0",
+				Location:    SchemaLocation{Type: LocationTypeInline},
+				ContentType: "application/json",
+				Hash:        "1234567890123456789012345678901234567890123456789012345678901234",
+				Size:        1024,
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing spec version",
+			descriptor: SchemaDescriptor{
+				Type:        SchemaTypeOpenAPI,
+				Location:    SchemaLocation{Type: LocationTypeHTTP, URL: "http://test.com"},
+				ContentType: "application/json",
+				Hash:        "1234567890123456789012345678901234567890123456789012345678901234",
+				Size:        1024,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateSchemaDescriptor(&tt.descriptor)
+
+			if tt.wantErr && err == nil {
+				t.Error("expected error, got nil")
+			}
+
+			if !tt.wantErr && err != nil {
+				t.Errorf("expected no error, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestCalculateManifestChecksum_Empty(t *testing.T) {
+	manifest := NewManifest("test-service", "v1.0.0", "instance-123")
+	
+	checksum, err := CalculateManifestChecksum(manifest)
+	if err != nil {
+		t.Fatalf("CalculateManifestChecksum failed: %v", err)
+	}
+
+	// Empty manifest should have empty checksum
+	if checksum != "" {
+		t.Errorf("expected empty checksum for manifest with no schemas, got %s", checksum)
+	}
+}
+
+func TestCalculateSchemaChecksum_Error(t *testing.T) {
+	// Test with value that can't be marshaled to JSON
+	invalidSchema := make(chan int) // channels can't be marshaled to JSON
+
+	_, err := CalculateSchemaChecksum(invalidSchema)
+	if err == nil {
+		t.Error("CalculateSchemaChecksum should return error for invalid schema")
+	}
+}
+
+func TestDiffManifests_NoChanges(t *testing.T) {
+	manifest := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest.AddSchema(SchemaDescriptor{
+		Type:        SchemaTypeOpenAPI,
+		SpecVersion: "3.1.0",
+		Location:    SchemaLocation{Type: LocationTypeHTTP, URL: "http://test.com"},
+		ContentType: "application/json",
+		Hash:        "hash1",
+		Size:        1024,
+	})
+	manifest.AddCapability("rest")
+	manifest.Endpoints.Health = "/health"
+
+	clone := manifest.Clone()
+
+	diff := DiffManifests(manifest, clone)
+
+	if diff.HasChanges() {
+		t.Error("expected no changes between identical manifests")
+	}
+}
+
+func TestDiffManifests_EndpointChanges(t *testing.T) {
+	old := NewManifest("test-service", "v1.0.0", "instance-123")
+	old.Endpoints.Health = "/health"
+
+	new := old.Clone()
+	new.Endpoints.Health = "/healthz"
+
+	diff := DiffManifests(old, new)
+
+	if !diff.EndpointsChanged {
+		t.Error("expected endpoint changes to be detected")
+	}
+
+	if !diff.HasChanges() {
+		t.Error("HasChanges should return true when endpoints changed")
 	}
 }
 

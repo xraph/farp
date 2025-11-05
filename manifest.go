@@ -19,7 +19,12 @@ func NewManifest(serviceName, serviceVersion, instanceID string) *SchemaManifest
 		Schemas:        []SchemaDescriptor{},
 		Capabilities:   []string{},
 		Endpoints:      SchemaEndpoints{},
-		UpdatedAt:      time.Now().Unix(),
+		Routing: RoutingConfig{
+			Strategy: MountStrategyInstance, // Default strategy
+		},
+		Auth:      AuthConfig{},
+		Webhook:   WebhookConfig{},
+		UpdatedAt: time.Now().Unix(),
 	}
 }
 
@@ -71,6 +76,18 @@ func (m *SchemaManifest) Validate() error {
 		return &ValidationError{Field: "endpoints.health", Message: "health endpoint is required"}
 	}
 
+	// Validate instance metadata if present
+	if m.Instance != nil {
+		if err := ValidateInstanceMetadata(m.Instance); err != nil {
+			return fmt.Errorf("invalid instance metadata: %w", err)
+		}
+	}
+
+	// Validate routing configuration
+	if err := ValidateRoutingConfig(&m.Routing); err != nil {
+		return fmt.Errorf("invalid routing config: %w", err)
+	}
+
 	// Validate each schema descriptor
 	for i, schema := range m.Schemas {
 		if err := ValidateSchemaDescriptor(&schema); err != nil {
@@ -87,6 +104,56 @@ func (m *SchemaManifest) Validate() error {
 		if m.Checksum != expectedChecksum {
 			return fmt.Errorf("%w: expected %s, got %s", ErrChecksumMismatch, expectedChecksum, m.Checksum)
 		}
+	}
+
+	return nil
+}
+
+// ValidateInstanceMetadata validates instance metadata
+func ValidateInstanceMetadata(im *InstanceMetadata) error {
+	// Address is required
+	if im.Address == "" {
+		return &ValidationError{Field: "address", Message: "instance address is required"}
+	}
+
+	// Weight should be 0-100
+	if im.Weight < 0 || im.Weight > 100 {
+		return &ValidationError{Field: "weight", Message: "instance weight must be between 0 and 100"}
+	}
+
+	// Validate deployment metadata if present
+	if im.Deployment != nil {
+		if im.Deployment.DeploymentID == "" {
+			return &ValidationError{Field: "deployment.deployment_id", Message: "deployment ID is required"}
+		}
+		if im.Deployment.TrafficPercent < 0 || im.Deployment.TrafficPercent > 100 {
+			return &ValidationError{Field: "deployment.traffic_percent", Message: "traffic percent must be between 0 and 100"}
+		}
+	}
+
+	return nil
+}
+
+// ValidateRoutingConfig validates routing configuration
+func ValidateRoutingConfig(rc *RoutingConfig) error {
+	// Validate mount strategy
+	if rc.Strategy != "" && !rc.Strategy.IsValid() {
+		return &ValidationError{Field: "routing.strategy", Message: fmt.Sprintf("invalid mount strategy: %s", rc.Strategy)}
+	}
+
+	// Custom strategy requires base path
+	if rc.Strategy == MountStrategyCustom && rc.BasePath == "" {
+		return &ValidationError{Field: "routing.base_path", Message: "base path is required for custom mount strategy"}
+	}
+
+	// Subdomain strategy requires subdomain
+	if rc.Strategy == MountStrategySubdomain && rc.Subdomain == "" {
+		return &ValidationError{Field: "routing.subdomain", Message: "subdomain is required for subdomain mount strategy"}
+	}
+
+	// Priority should be 0-100
+	if rc.Priority < 0 || rc.Priority > 100 {
+		return &ValidationError{Field: "routing.priority", Message: "routing priority must be between 0 and 100"}
 	}
 
 	return nil
