@@ -6,7 +6,7 @@ import (
 	"github.com/xraph/farp"
 )
 
-// MultiProtocolMerger handles composition of different schema types
+// MultiProtocolMerger handles composition of different schema types.
 type MultiProtocolMerger struct {
 	config         MergerConfig
 	openAPIMerger  *Merger
@@ -15,7 +15,7 @@ type MultiProtocolMerger struct {
 	orpcMerger     *ORPCMerger
 }
 
-// NewMultiProtocolMerger creates a new multi-protocol merger
+// NewMultiProtocolMerger creates a new multi-protocol merger.
 func NewMultiProtocolMerger(config MergerConfig) *MultiProtocolMerger {
 	return &MultiProtocolMerger{
 		config:         config,
@@ -26,7 +26,7 @@ func NewMultiProtocolMerger(config MergerConfig) *MultiProtocolMerger {
 	}
 }
 
-// MultiProtocolResult contains merged specs for all protocol types
+// MultiProtocolResult contains merged specs for all protocol types.
 type MultiProtocolResult struct {
 	OpenAPI          *MergeResult
 	AsyncAPI         *AsyncAPIMergeResult
@@ -36,8 +36,8 @@ type MultiProtocolResult struct {
 	Warnings         []string
 }
 
-// MergeAll merges schemas across all protocols
-func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaFetcher func(string) (interface{}, error)) (*MultiProtocolResult, error) {
+// MergeAll merges schemas across all protocols.
+func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaFetcher func(string) (any, error)) (*MultiProtocolResult, error) {
 	result := &MultiProtocolResult{
 		IncludedServices: make(map[farp.SchemaType][]string),
 		Warnings:         []string{},
@@ -57,6 +57,7 @@ func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaF
 				result.Warnings = append(result.Warnings,
 					fmt.Sprintf("Failed to fetch schema %s for %s: %v",
 						schemaDesc.Hash, manifest.ServiceName, err))
+
 				continue
 			}
 
@@ -100,6 +101,7 @@ func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaF
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge OpenAPI schemas: %w", err)
 		}
+
 		result.OpenAPI = openAPIResult
 		result.IncludedServices[farp.SchemaTypeOpenAPI] = openAPIResult.IncludedServices
 	}
@@ -110,6 +112,7 @@ func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaF
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge AsyncAPI schemas: %w", err)
 		}
+
 		result.AsyncAPI = asyncAPIResult
 		result.IncludedServices[farp.SchemaTypeAsyncAPI] = asyncAPIResult.IncludedServices
 	}
@@ -120,6 +123,7 @@ func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaF
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge gRPC schemas: %w", err)
 		}
+
 		result.GRPC = grpcResult
 		result.IncludedServices[farp.SchemaTypeGRPC] = grpcResult.IncludedServices
 	}
@@ -130,6 +134,7 @@ func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaF
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge oRPC schemas: %w", err)
 		}
+
 		result.ORPC = orpcResult
 		result.IncludedServices[farp.SchemaTypeORPC] = orpcResult.IncludedServices
 	}
@@ -137,7 +142,7 @@ func (m *MultiProtocolMerger) MergeAll(manifests []*farp.SchemaManifest, schemaF
 	return result, nil
 }
 
-// GetSummary returns a summary of what was merged
+// GetSummary returns a summary of what was merged.
 func (r *MultiProtocolResult) GetSummary() string {
 	summary := "Multi-Protocol Merge Summary:\n"
 
@@ -168,25 +173,29 @@ func (r *MultiProtocolResult) GetSummary() string {
 	return summary
 }
 
-// GetTotalConflicts returns the total number of conflicts across all protocols
+// GetTotalConflicts returns the total number of conflicts across all protocols.
 func (r *MultiProtocolResult) GetTotalConflicts() int {
 	total := 0
 	if r.OpenAPI != nil {
 		total += len(r.OpenAPI.Conflicts)
 	}
+
 	if r.AsyncAPI != nil {
 		total += len(r.AsyncAPI.Conflicts)
 	}
+
 	if r.GRPC != nil {
 		total += len(r.GRPC.Conflicts)
 	}
+
 	if r.ORPC != nil {
 		total += len(r.ORPC.Conflicts)
 	}
+
 	return total
 }
 
-// HasProtocol checks if a specific protocol was merged
+// HasProtocol checks if a specific protocol was merged.
 func (r *MultiProtocolResult) HasProtocol(schemaType farp.SchemaType) bool {
 	switch schemaType {
 	case farp.SchemaTypeOpenAPI:

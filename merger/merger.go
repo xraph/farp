@@ -2,16 +2,17 @@ package merger
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/xraph/farp"
 )
 
-// Merger handles OpenAPI schema composition
+// Merger handles OpenAPI schema composition.
 type Merger struct {
 	config MergerConfig
 }
 
-// MergerConfig configures the merger behavior
+// MergerConfig configures the merger behavior.
 type MergerConfig struct {
 	// Default conflict strategy if not specified in metadata
 	DefaultConflictStrategy farp.ConflictStrategy
@@ -35,7 +36,7 @@ type MergerConfig struct {
 	Servers []Server
 }
 
-// DefaultMergerConfig returns default merger configuration
+// DefaultMergerConfig returns default merger configuration.
 func DefaultMergerConfig() MergerConfig {
 	return MergerConfig{
 		DefaultConflictStrategy: farp.ConflictStrategyPrefix,
@@ -48,14 +49,14 @@ func DefaultMergerConfig() MergerConfig {
 	}
 }
 
-// NewMerger creates a new OpenAPI merger
+// NewMerger creates a new OpenAPI merger.
 func NewMerger(config MergerConfig) *Merger {
 	return &Merger{
 		config: config,
 	}
 }
 
-// MergeResult contains the merged OpenAPI spec and metadata
+// MergeResult contains the merged OpenAPI spec and metadata.
 type MergeResult struct {
 	// The merged OpenAPI specification
 	Spec *OpenAPISpec
@@ -73,7 +74,7 @@ type MergeResult struct {
 	Warnings []string
 }
 
-// Conflict represents a conflict encountered during merging
+// Conflict represents a conflict encountered during merging.
 type Conflict struct {
 	// Type of conflict (path, component, tag, etc.)
 	Type ConflictType
@@ -91,27 +92,27 @@ type Conflict struct {
 	Strategy farp.ConflictStrategy
 }
 
-// ConflictType represents the type of conflict
+// ConflictType represents the type of conflict.
 type ConflictType string
 
 const (
-	// ConflictTypePath indicates path conflict
+	// ConflictTypePath indicates path conflict.
 	ConflictTypePath ConflictType = "path"
 
-	// ConflictTypeComponent indicates component name conflict
+	// ConflictTypeComponent indicates component name conflict.
 	ConflictTypeComponent ConflictType = "component"
 
-	// ConflictTypeTag indicates tag conflict
+	// ConflictTypeTag indicates tag conflict.
 	ConflictTypeTag ConflictType = "tag"
 
-	// ConflictTypeOperationID indicates operation ID conflict
+	// ConflictTypeOperationID indicates operation ID conflict.
 	ConflictTypeOperationID ConflictType = "operationId"
 
-	// ConflictTypeSecurityScheme indicates security scheme conflict
+	// ConflictTypeSecurityScheme indicates security scheme conflict.
 	ConflictTypeSecurityScheme ConflictType = "securityScheme"
 )
 
-// Merge merges multiple OpenAPI schemas from service manifests
+// Merge merges multiple OpenAPI schemas from service manifests.
 func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 	result := &MergeResult{
 		Spec: &OpenAPISpec{
@@ -124,14 +125,14 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 			Servers: m.config.Servers,
 			Paths:   make(map[string]PathItem),
 			Components: &Components{
-				Schemas:         make(map[string]map[string]interface{}),
+				Schemas:         make(map[string]map[string]any),
 				Responses:       make(map[string]Response),
 				Parameters:      make(map[string]Parameter),
 				RequestBodies:   make(map[string]RequestBody),
 				SecuritySchemes: make(map[string]SecurityScheme),
 			},
 			Tags:       []Tag{},
-			Extensions: make(map[string]interface{}),
+			Extensions: make(map[string]any),
 		},
 		IncludedServices: []string{},
 		ExcludedServices: []string{},
@@ -153,6 +154,7 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 		// Check if this schema should be included
 		if !shouldIncludeInMerge(schema) {
 			result.ExcludedServices = append(result.ExcludedServices, serviceName)
+
 			continue
 		}
 
@@ -164,8 +166,10 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 			if err != nil {
 				result.Warnings = append(result.Warnings,
 					fmt.Sprintf("Failed to parse schema for %s: %v", serviceName, err))
+
 				continue
 			}
+
 			schema.Parsed = parsed
 		}
 
@@ -196,8 +200,9 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 						path, existingService, serviceName)
 
 				case farp.ConflictStrategySkip:
-					conflict.Resolution = fmt.Sprintf("Skipped path from %s", serviceName)
+					conflict.Resolution = "Skipped path from " + serviceName
 					result.Conflicts = append(result.Conflicts, conflict)
+
 					continue
 
 				case farp.ConflictStrategyOverwrite:
@@ -208,7 +213,7 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 				case farp.ConflictStrategyPrefix:
 					// Add service prefix to path
 					newPath := fmt.Sprintf("/%s%s", serviceName, path)
-					conflict.Resolution = fmt.Sprintf("Prefixed to %s", newPath)
+					conflict.Resolution = "Prefixed to " + newPath
 					result.Conflicts = append(result.Conflicts, conflict)
 					path = newPath
 
@@ -242,8 +247,9 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 					}
 
 					if strategy == farp.ConflictStrategySkip {
-						conflict.Resolution = fmt.Sprintf("Skipped component from %s", serviceName)
+						conflict.Resolution = "Skipped component from " + serviceName
 						result.Conflicts = append(result.Conflicts, conflict)
+
 						continue
 					}
 
@@ -256,15 +262,11 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 			}
 
 			// Merge other component types
-			for name, response := range prefixedComponents.Responses {
-				result.Spec.Components.Responses[name] = response
-			}
-			for name, param := range prefixedComponents.Parameters {
-				result.Spec.Components.Parameters[name] = param
-			}
-			for name, body := range prefixedComponents.RequestBodies {
-				result.Spec.Components.RequestBodies[name] = body
-			}
+			maps.Copy(result.Spec.Components.Responses, prefixedComponents.Responses)
+
+			maps.Copy(result.Spec.Components.Parameters, prefixedComponents.Parameters)
+
+			maps.Copy(result.Spec.Components.RequestBodies, prefixedComponents.RequestBodies)
 
 			// Merge security schemes (with conflict detection)
 			for name, scheme := range prefixedComponents.SecuritySchemes {
@@ -282,8 +284,9 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 							name, existingService, serviceName)
 
 					case farp.ConflictStrategySkip:
-						conflict.Resolution = fmt.Sprintf("Skipped security scheme from %s", serviceName)
+						conflict.Resolution = "Skipped security scheme from " + serviceName
 						result.Conflicts = append(result.Conflicts, conflict)
+
 						continue
 
 					case farp.ConflictStrategyOverwrite:
@@ -293,10 +296,11 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 					case farp.ConflictStrategyPrefix:
 						// Prefix the security scheme name
 						prefixedName := componentPrefix + "_" + name
-						conflict.Resolution = fmt.Sprintf("Prefixed to %s", prefixedName)
+						conflict.Resolution = "Prefixed to " + prefixedName
 						result.Conflicts = append(result.Conflicts, conflict)
 						result.Spec.Components.SecuritySchemes[prefixedName] = scheme
 						seenSecuritySchemes[prefixedName] = serviceName
+
 						continue
 
 					case farp.ConflictStrategyMerge:
@@ -369,6 +373,7 @@ func getCompositionConfig(manifest *farp.SchemaManifest) *farp.CompositionConfig
 			return schemaDesc.Metadata.OpenAPI.Composition
 		}
 	}
+
 	return nil
 }
 
@@ -376,6 +381,7 @@ func (m *Merger) getConflictStrategy(config *farp.CompositionConfig) farp.Confli
 	if config != nil && config.ConflictStrategy != "" {
 		return config.ConflictStrategy
 	}
+
 	return m.config.DefaultConflictStrategy
 }
 
@@ -383,6 +389,7 @@ func getComponentPrefix(manifest *farp.SchemaManifest, config *farp.CompositionC
 	if config != nil && config.ComponentPrefix != "" {
 		return config.ComponentPrefix
 	}
+
 	return manifest.ServiceName
 }
 
@@ -390,6 +397,7 @@ func getTagPrefix(manifest *farp.SchemaManifest, config *farp.CompositionConfig)
 	if config != nil && config.TagPrefix != "" {
 		return config.TagPrefix
 	}
+
 	return manifest.ServiceName
 }
 
@@ -397,6 +405,7 @@ func getOperationIDPrefix(manifest *farp.SchemaManifest, config *farp.Compositio
 	if config != nil && config.OperationIDPrefix != "" {
 		return config.OperationIDPrefix
 	}
+
 	return manifest.ServiceName
 }
 
@@ -411,6 +420,7 @@ func applyOperationPrefixes(item PathItem, opIDPrefix, tagPrefix, serviceName st
 		// Prefix operation ID
 		if op.OperationID != "" {
 			originalID := op.OperationID
+
 			if opIDPrefix != "" {
 				op.OperationID = opIDPrefix + "_" + op.OperationID
 			}
@@ -421,9 +431,10 @@ func applyOperationPrefixes(item PathItem, opIDPrefix, tagPrefix, serviceName st
 					Type:       ConflictTypeOperationID,
 					Item:       originalID,
 					Services:   []string{existingService, serviceName},
-					Resolution: fmt.Sprintf("Prefixed to %s", op.OperationID),
+					Resolution: "Prefixed to " + op.OperationID,
 				})
 			}
+
 			seenOperationIDs[op.OperationID] = serviceName
 		}
 
@@ -450,24 +461,31 @@ func mergePathItems(existing, new PathItem) PathItem {
 	if new.Get != nil {
 		existing.Get = new.Get
 	}
+
 	if new.Post != nil {
 		existing.Post = new.Post
 	}
+
 	if new.Put != nil {
 		existing.Put = new.Put
 	}
+
 	if new.Delete != nil {
 		existing.Delete = new.Delete
 	}
+
 	if new.Patch != nil {
 		existing.Patch = new.Patch
 	}
+
 	if new.Options != nil {
 		existing.Options = new.Options
 	}
+
 	if new.Head != nil {
 		existing.Head = new.Head
 	}
+
 	if new.Trace != nil {
 		existing.Trace = new.Trace
 	}

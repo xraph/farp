@@ -5,28 +5,30 @@ import (
 	"testing"
 )
 
-// Mock application for testing
+// Mock application for testing.
 type mockApplication struct {
 	name    string
 	version string
-	routes  interface{}
+	routes  any
 }
 
-func (m *mockApplication) Name() string        { return m.name }
-func (m *mockApplication) Version() string     { return m.version }
-func (m *mockApplication) Routes() interface{} { return m.routes }
+func (m *mockApplication) Name() string    { return m.name }
+func (m *mockApplication) Version() string { return m.version }
+func (m *mockApplication) Routes() any     { return m.routes }
 
-// Mock schema provider for testing
+// Mock schema provider for testing.
 type mockSchemaProvider struct {
 	BaseSchemaProvider
-	generateFunc func(ctx context.Context, app Application) (interface{}, error)
+
+	generateFunc func(ctx context.Context, app Application) (any, error)
 }
 
-func (m *mockSchemaProvider) Generate(ctx context.Context, app Application) (interface{}, error) {
+func (m *mockSchemaProvider) Generate(ctx context.Context, app Application) (any, error) {
 	if m.generateFunc != nil {
 		return m.generateFunc(ctx, app)
 	}
-	return map[string]interface{}{"test": "schema"}, nil
+
+	return map[string]any{"test": "schema"}, nil
 }
 
 func TestBaseSchemaProvider_Type(t *testing.T) {
@@ -72,7 +74,7 @@ func TestBaseSchemaProvider_Endpoint(t *testing.T) {
 func TestBaseSchemaProvider_Hash(t *testing.T) {
 	provider := &BaseSchemaProvider{}
 
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"test": "data",
 	}
 
@@ -99,7 +101,7 @@ func TestBaseSchemaProvider_Hash(t *testing.T) {
 func TestBaseSchemaProvider_Serialize(t *testing.T) {
 	provider := &BaseSchemaProvider{}
 
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"test": "data",
 	}
 
@@ -121,20 +123,23 @@ func TestBaseSchemaProvider_Serialize(t *testing.T) {
 func TestBaseSchemaProvider_Validate(t *testing.T) {
 	// Test with no validation function
 	provider := &BaseSchemaProvider{}
-	schema := map[string]interface{}{"test": "data"}
+	schema := map[string]any{"test": "data"}
 
-	if err := provider.Validate(schema); err != nil {
+	err := provider.Validate(schema)
+	if err != nil {
 		t.Errorf("Validate() with no validateFunc should return nil, got %v", err)
 	}
 
 	// Test with validation function
 	validateCalled := false
-	provider.validateFunc = func(interface{}) error {
+	provider.validateFunc = func(any) error {
 		validateCalled = true
+
 		return nil
 	}
 
-	if err := provider.Validate(schema); err != nil {
+	err = provider.Validate(schema)
+	if err != nil {
 		t.Errorf("Validate() error = %v", err)
 	}
 
@@ -175,6 +180,7 @@ func TestProviderRegistry_Get(t *testing.T) {
 	if !ok {
 		t.Error("Get() should find registered provider")
 	}
+
 	if got.Type() != SchemaTypeOpenAPI {
 		t.Errorf("Get() returned wrong provider type: %v", got.Type())
 	}
@@ -238,10 +244,12 @@ func TestProviderRegistry_List(t *testing.T) {
 	// Check that both types are in the list
 	hasOpenAPI := false
 	hasAsyncAPI := false
+
 	for _, schemaType := range list {
 		if schemaType == SchemaTypeOpenAPI {
 			hasOpenAPI = true
 		}
+
 		if schemaType == SchemaTypeAsyncAPI {
 			hasAsyncAPI = true
 		}
@@ -250,6 +258,7 @@ func TestProviderRegistry_List(t *testing.T) {
 	if !hasOpenAPI {
 		t.Error("List() should include OpenAPI")
 	}
+
 	if !hasAsyncAPI {
 		t.Error("List() should include AsyncAPI")
 	}
@@ -279,6 +288,7 @@ func TestGlobalProviderRegistry(t *testing.T) {
 	if !ok {
 		t.Error("GetProvider() should find registered provider")
 	}
+
 	if got.Type() != SchemaTypeCustom {
 		t.Errorf("GetProvider() returned wrong type: %v", got.Type())
 	}

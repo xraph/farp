@@ -2,36 +2,36 @@ package farp
 
 import "fmt"
 
-// SchemaType represents supported schema/protocol types
+// SchemaType represents supported schema/protocol types.
 type SchemaType string
 
 const (
-	// SchemaTypeOpenAPI represents OpenAPI/Swagger specifications
+	// SchemaTypeOpenAPI represents OpenAPI/Swagger specifications.
 	SchemaTypeOpenAPI SchemaType = "openapi"
 
-	// SchemaTypeAsyncAPI represents AsyncAPI specifications
+	// SchemaTypeAsyncAPI represents AsyncAPI specifications.
 	SchemaTypeAsyncAPI SchemaType = "asyncapi"
 
-	// SchemaTypeGRPC represents gRPC protocol buffer definitions
+	// SchemaTypeGRPC represents gRPC protocol buffer definitions.
 	SchemaTypeGRPC SchemaType = "grpc"
 
-	// SchemaTypeGraphQL represents GraphQL Schema Definition Language
+	// SchemaTypeGraphQL represents GraphQL Schema Definition Language.
 	SchemaTypeGraphQL SchemaType = "graphql"
 
-	// SchemaTypeORPC represents oRPC (OpenAPI-based RPC) specifications
+	// SchemaTypeORPC represents oRPC (OpenAPI-based RPC) specifications.
 	SchemaTypeORPC SchemaType = "orpc"
 
-	// SchemaTypeThrift represents Apache Thrift IDL (future support)
+	// SchemaTypeThrift represents Apache Thrift IDL (future support).
 	SchemaTypeThrift SchemaType = "thrift"
 
-	// SchemaTypeAvro represents Apache Avro schemas (future support)
+	// SchemaTypeAvro represents Apache Avro schemas (future support).
 	SchemaTypeAvro SchemaType = "avro"
 
-	// SchemaTypeCustom represents custom/proprietary schema types
+	// SchemaTypeCustom represents custom/proprietary schema types.
 	SchemaTypeCustom SchemaType = "custom"
 )
 
-// IsValid checks if the schema type is valid
+// IsValid checks if the schema type is valid.
 func (st SchemaType) IsValid() bool {
 	switch st {
 	case SchemaTypeOpenAPI, SchemaTypeAsyncAPI, SchemaTypeGRPC,
@@ -42,26 +42,26 @@ func (st SchemaType) IsValid() bool {
 	}
 }
 
-// String returns the string representation of the schema type
+// String returns the string representation of the schema type.
 func (st SchemaType) String() string {
 	return string(st)
 }
 
-// LocationType represents how schemas can be retrieved
+// LocationType represents how schemas can be retrieved.
 type LocationType string
 
 const (
-	// LocationTypeHTTP means fetch schema via HTTP GET
+	// LocationTypeHTTP means fetch schema via HTTP GET.
 	LocationTypeHTTP LocationType = "http"
 
-	// LocationTypeRegistry means fetch schema from backend KV store
+	// LocationTypeRegistry means fetch schema from backend KV store.
 	LocationTypeRegistry LocationType = "registry"
 
-	// LocationTypeInline means schema is embedded in the manifest
+	// LocationTypeInline means schema is embedded in the manifest.
 	LocationTypeInline LocationType = "inline"
 )
 
-// IsValid checks if the location type is valid
+// IsValid checks if the location type is valid.
 func (lt LocationType) IsValid() bool {
 	switch lt {
 	case LocationTypeHTTP, LocationTypeRegistry, LocationTypeInline:
@@ -71,12 +71,12 @@ func (lt LocationType) IsValid() bool {
 	}
 }
 
-// String returns the string representation of the location type
+// String returns the string representation of the location type.
 func (lt LocationType) String() string {
 	return string(lt)
 }
 
-// SchemaManifest describes all API contracts for a service instance
+// SchemaManifest describes all API contracts for a service instance.
 type SchemaManifest struct {
 	// Version of the FARP protocol (semver)
 	Version string `json:"version"`
@@ -115,7 +115,7 @@ type SchemaManifest struct {
 	Checksum  string `json:"checksum"`   // SHA256 of all schemas combined
 }
 
-// SchemaDescriptor describes a single API schema/contract
+// SchemaDescriptor describes a single API schema/contract.
 type SchemaDescriptor struct {
 	// Type of schema (openapi, asyncapi, grpc, graphql, etc.)
 	Type SchemaType `json:"type"`
@@ -130,7 +130,7 @@ type SchemaDescriptor struct {
 	ContentType string `json:"content_type"`
 
 	// Optional: Inline schema for small schemas (< 100KB recommended)
-	InlineSchema interface{} `json:"inline_schema,omitempty"`
+	InlineSchema any `json:"inline_schema,omitempty"`
 
 	// Integrity validation
 	Hash string `json:"hash"` // SHA256 of schema content
@@ -143,7 +143,7 @@ type SchemaDescriptor struct {
 	Metadata *ProtocolMetadata `json:"metadata,omitempty"`
 }
 
-// SchemaLocation describes where and how to fetch a schema
+// SchemaLocation describes where and how to fetch a schema.
 type SchemaLocation struct {
 	// Location type (http, registry, inline)
 	Type LocationType `json:"type"`
@@ -161,7 +161,7 @@ type SchemaLocation struct {
 	Headers map[string]string `json:"headers,omitempty"`
 }
 
-// Validate checks if the schema location is valid
+// Validate checks if the schema location is valid.
 func (sl *SchemaLocation) Validate() error {
 	if !sl.Type.IsValid() {
 		return fmt.Errorf("%w: invalid location type: %s", ErrInvalidLocation, sl.Type)
@@ -183,7 +183,7 @@ func (sl *SchemaLocation) Validate() error {
 	return nil
 }
 
-// SchemaEndpoints provides URLs for service introspection
+// SchemaEndpoints provides URLs for service introspection.
 type SchemaEndpoints struct {
 	// Health check endpoint (required)
 	// Example: "/health" or "/healthz"
@@ -209,38 +209,38 @@ type SchemaEndpoints struct {
 	GraphQL string `json:"graphql,omitempty"`
 }
 
-// Capability represents a protocol capability
+// Capability represents a protocol capability.
 type Capability string
 
 const (
-	// CapabilityREST indicates REST API support
+	// CapabilityREST indicates REST API support.
 	CapabilityREST Capability = "rest"
 
-	// CapabilityGRPC indicates gRPC support
+	// CapabilityGRPC indicates gRPC support.
 	CapabilityGRPC Capability = "grpc"
 
-	// CapabilityWebSocket indicates WebSocket support
+	// CapabilityWebSocket indicates WebSocket support.
 	CapabilityWebSocket Capability = "websocket"
 
-	// CapabilitySSE indicates Server-Sent Events support
+	// CapabilitySSE indicates Server-Sent Events support.
 	CapabilitySSE Capability = "sse"
 
-	// CapabilityGraphQL indicates GraphQL support
+	// CapabilityGraphQL indicates GraphQL support.
 	CapabilityGraphQL Capability = "graphql"
 
-	// CapabilityMQTT indicates MQTT support
+	// CapabilityMQTT indicates MQTT support.
 	CapabilityMQTT Capability = "mqtt"
 
-	// CapabilityAMQP indicates AMQP support
+	// CapabilityAMQP indicates AMQP support.
 	CapabilityAMQP Capability = "amqp"
 )
 
-// String returns the string representation of the capability
+// String returns the string representation of the capability.
 func (c Capability) String() string {
 	return string(c)
 }
 
-// InstanceMetadata provides information about a service instance
+// InstanceMetadata provides information about a service instance.
 type InstanceMetadata struct {
 	// Instance address (host:port)
 	Address string `json:"address"`
@@ -271,60 +271,60 @@ type InstanceMetadata struct {
 	ExpectedSchemaChecksum string `json:"expected_schema_checksum,omitempty"`
 }
 
-// InstanceStatus represents the status of a service instance
+// InstanceStatus represents the status of a service instance.
 type InstanceStatus string
 
 const (
-	// InstanceStatusStarting indicates the instance is starting
+	// InstanceStatusStarting indicates the instance is starting.
 	InstanceStatusStarting InstanceStatus = "starting"
 
-	// InstanceStatusHealthy indicates the instance is healthy
+	// InstanceStatusHealthy indicates the instance is healthy.
 	InstanceStatusHealthy InstanceStatus = "healthy"
 
-	// InstanceStatusDegraded indicates the instance is degraded
+	// InstanceStatusDegraded indicates the instance is degraded.
 	InstanceStatusDegraded InstanceStatus = "degraded"
 
-	// InstanceStatusUnhealthy indicates the instance is unhealthy
+	// InstanceStatusUnhealthy indicates the instance is unhealthy.
 	InstanceStatusUnhealthy InstanceStatus = "unhealthy"
 
-	// InstanceStatusDraining indicates the instance is draining connections
+	// InstanceStatusDraining indicates the instance is draining connections.
 	InstanceStatusDraining InstanceStatus = "draining"
 
-	// InstanceStatusStopping indicates the instance is stopping
+	// InstanceStatusStopping indicates the instance is stopping.
 	InstanceStatusStopping InstanceStatus = "stopping"
 )
 
-// String returns the string representation of the instance status
+// String returns the string representation of the instance status.
 func (is InstanceStatus) String() string {
 	return string(is)
 }
 
-// InstanceRole represents the role of an instance in a deployment
+// InstanceRole represents the role of an instance in a deployment.
 type InstanceRole string
 
 const (
-	// InstanceRolePrimary indicates the instance is primary/production
+	// InstanceRolePrimary indicates the instance is primary/production.
 	InstanceRolePrimary InstanceRole = "primary"
 
-	// InstanceRoleCanary indicates the instance is a canary deployment
+	// InstanceRoleCanary indicates the instance is a canary deployment.
 	InstanceRoleCanary InstanceRole = "canary"
 
-	// InstanceRoleBlue indicates the instance is part of blue deployment
+	// InstanceRoleBlue indicates the instance is part of blue deployment.
 	InstanceRoleBlue InstanceRole = "blue"
 
-	// InstanceRoleGreen indicates the instance is part of green deployment
+	// InstanceRoleGreen indicates the instance is part of green deployment.
 	InstanceRoleGreen InstanceRole = "green"
 
-	// InstanceRoleShadow indicates the instance is a shadow deployment
+	// InstanceRoleShadow indicates the instance is a shadow deployment.
 	InstanceRoleShadow InstanceRole = "shadow"
 )
 
-// String returns the string representation of the instance role
+// String returns the string representation of the instance role.
 func (ir InstanceRole) String() string {
 	return string(ir)
 }
 
-// DeploymentMetadata provides information about a deployment
+// DeploymentMetadata provides information about a deployment.
 type DeploymentMetadata struct {
 	// Deployment ID
 	DeploymentID string `json:"deployment_id"`
@@ -342,32 +342,32 @@ type DeploymentMetadata struct {
 	DeployedAt int64 `json:"deployed_at"`
 }
 
-// DeploymentStrategy represents the deployment strategy
+// DeploymentStrategy represents the deployment strategy.
 type DeploymentStrategy string
 
 const (
-	// DeploymentStrategyRolling indicates a rolling update deployment
+	// DeploymentStrategyRolling indicates a rolling update deployment.
 	DeploymentStrategyRolling DeploymentStrategy = "rolling"
 
-	// DeploymentStrategyCanary indicates a canary deployment
+	// DeploymentStrategyCanary indicates a canary deployment.
 	DeploymentStrategyCanary DeploymentStrategy = "canary"
 
-	// DeploymentStrategyBlueGreen indicates a blue-green deployment
+	// DeploymentStrategyBlueGreen indicates a blue-green deployment.
 	DeploymentStrategyBlueGreen DeploymentStrategy = "blue_green"
 
-	// DeploymentStrategyShadow indicates a shadow deployment
+	// DeploymentStrategyShadow indicates a shadow deployment.
 	DeploymentStrategyShadow DeploymentStrategy = "shadow"
 
-	// DeploymentStrategyRecreate indicates a recreate deployment
+	// DeploymentStrategyRecreate indicates a recreate deployment.
 	DeploymentStrategyRecreate DeploymentStrategy = "recreate"
 )
 
-// String returns the string representation of the deployment strategy
+// String returns the string representation of the deployment strategy.
 func (ds DeploymentStrategy) String() string {
 	return string(ds)
 }
 
-// RoutingConfig provides gateway route mounting configuration
+// RoutingConfig provides gateway route mounting configuration.
 type RoutingConfig struct {
 	// Mounting strategy
 	Strategy MountStrategy `json:"strategy"`
@@ -391,35 +391,35 @@ type RoutingConfig struct {
 	Tags []string `json:"tags,omitempty"`
 }
 
-// MountStrategy defines how routes are mounted in the gateway
+// MountStrategy defines how routes are mounted in the gateway.
 type MountStrategy string
 
 const (
-	// MountStrategyRoot merges service routes to gateway root (no prefix)
+	// MountStrategyRoot merges service routes to gateway root (no prefix).
 	MountStrategyRoot MountStrategy = "root"
 
-	// MountStrategyInstance mounts under /instance-id/* (default)
+	// MountStrategyInstance mounts under /instance-id/* (default).
 	MountStrategyInstance MountStrategy = "instance"
 
-	// MountStrategyService mounts under /service-name/*
+	// MountStrategyService mounts under /service-name/*.
 	MountStrategyService MountStrategy = "service"
 
-	// MountStrategyVersioned mounts under /service-name/version/*
+	// MountStrategyVersioned mounts under /service-name/version/*.
 	MountStrategyVersioned MountStrategy = "versioned"
 
-	// MountStrategyCustom mounts under custom base path
+	// MountStrategyCustom mounts under custom base path.
 	MountStrategyCustom MountStrategy = "custom"
 
-	// MountStrategySubdomain mounts on subdomain: service.gateway.com
+	// MountStrategySubdomain mounts on subdomain: service.gateway.com.
 	MountStrategySubdomain MountStrategy = "subdomain"
 )
 
-// String returns the string representation of the mount strategy
+// String returns the string representation of the mount strategy.
 func (ms MountStrategy) String() string {
 	return string(ms)
 }
 
-// IsValid checks if the mount strategy is valid
+// IsValid checks if the mount strategy is valid.
 func (ms MountStrategy) IsValid() bool {
 	switch ms {
 	case MountStrategyRoot, MountStrategyInstance, MountStrategyService,
@@ -430,7 +430,7 @@ func (ms MountStrategy) IsValid() bool {
 	}
 }
 
-// PathRewrite defines a path rewriting rule
+// PathRewrite defines a path rewriting rule.
 type PathRewrite struct {
 	// Pattern to match (regex)
 	Pattern string `json:"pattern"`
@@ -439,7 +439,7 @@ type PathRewrite struct {
 	Replacement string `json:"replacement"`
 }
 
-// AuthConfig provides authentication and authorization configuration
+// AuthConfig provides authentication and authorization configuration.
 type AuthConfig struct {
 	// Authentication schemes supported by service
 	Schemes []AuthScheme `json:"schemes"`
@@ -457,47 +457,47 @@ type AuthConfig struct {
 	PublicRoutes []string `json:"public_routes,omitempty"`
 }
 
-// AuthScheme describes an authentication scheme
+// AuthScheme describes an authentication scheme.
 type AuthScheme struct {
 	// Scheme type
 	Type AuthType `json:"type"`
 
 	// Scheme configuration (varies by type)
-	Config map[string]interface{} `json:"config,omitempty"`
+	Config map[string]any `json:"config,omitempty"`
 }
 
-// AuthType represents an authentication type
+// AuthType represents an authentication type.
 type AuthType string
 
 const (
-	// AuthTypeBearer indicates Bearer token authentication (JWT, opaque)
+	// AuthTypeBearer indicates Bearer token authentication (JWT, opaque).
 	AuthTypeBearer AuthType = "bearer"
 
-	// AuthTypeAPIKey indicates API key authentication
+	// AuthTypeAPIKey indicates API key authentication.
 	AuthTypeAPIKey AuthType = "apikey"
 
-	// AuthTypeBasic indicates Basic authentication
+	// AuthTypeBasic indicates Basic authentication.
 	AuthTypeBasic AuthType = "basic"
 
-	// AuthTypeMTLS indicates Mutual TLS authentication
+	// AuthTypeMTLS indicates Mutual TLS authentication.
 	AuthTypeMTLS AuthType = "mtls"
 
-	// AuthTypeOAuth2 indicates OAuth 2.0 authentication
+	// AuthTypeOAuth2 indicates OAuth 2.0 authentication.
 	AuthTypeOAuth2 AuthType = "oauth2"
 
-	// AuthTypeOIDC indicates OpenID Connect authentication
+	// AuthTypeOIDC indicates OpenID Connect authentication.
 	AuthTypeOIDC AuthType = "oidc"
 
-	// AuthTypeCustom indicates custom authentication scheme
+	// AuthTypeCustom indicates custom authentication scheme.
 	AuthTypeCustom AuthType = "custom"
 )
 
-// String returns the string representation of the auth type
+// String returns the string representation of the auth type.
 func (at AuthType) String() string {
 	return string(at)
 }
 
-// AccessRule defines an access control rule
+// AccessRule defines an access control rule.
 type AccessRule struct {
 	// Path pattern (glob or regex)
 	Path string `json:"path"`
@@ -515,7 +515,7 @@ type AccessRule struct {
 	AllowAnonymous bool `json:"allow_anonymous,omitempty"`
 }
 
-// WebhookConfig provides bidirectional communication configuration
+// WebhookConfig provides bidirectional communication configuration.
 type WebhookConfig struct {
 	// Webhook endpoint on service for gateway notifications
 	ServiceWebhook string `json:"service_webhook,omitempty"`
@@ -539,7 +539,7 @@ type WebhookConfig struct {
 	HTTPRoutes *HTTPCommunicationRoutes `json:"http_routes,omitempty"`
 }
 
-// HTTPCommunicationRoutes defines HTTP communication routes
+// HTTPCommunicationRoutes defines HTTP communication routes.
 type HTTPCommunicationRoutes struct {
 	// Service exposes these routes for gateway to call
 	ServiceRoutes []CommunicationRoute `json:"service_routes,omitempty"`
@@ -551,7 +551,7 @@ type HTTPCommunicationRoutes struct {
 	Polling *PollingConfig `json:"polling,omitempty"`
 }
 
-// CommunicationRoute defines a communication route
+// CommunicationRoute defines a communication route.
 type CommunicationRoute struct {
 	// Route identifier
 	ID string `json:"id"`
@@ -569,10 +569,10 @@ type CommunicationRoute struct {
 	Description string `json:"description,omitempty"`
 
 	// Request schema (JSON Schema, OpenAPI schema, etc.)
-	RequestSchema interface{} `json:"request_schema,omitempty"`
+	RequestSchema any `json:"request_schema,omitempty"`
 
 	// Response schema
-	ResponseSchema interface{} `json:"response_schema,omitempty"`
+	ResponseSchema any `json:"response_schema,omitempty"`
 
 	// Authentication required
 	AuthRequired bool `json:"auth_required"`
@@ -584,68 +584,68 @@ type CommunicationRoute struct {
 	Timeout string `json:"timeout,omitempty"`
 }
 
-// CommunicationRouteType defines the type of communication route
+// CommunicationRouteType defines the type of communication route.
 type CommunicationRouteType string
 
 const (
-	// RouteTypeControl indicates control plane operations
+	// RouteTypeControl indicates control plane operations.
 	RouteTypeControl CommunicationRouteType = "control"
 
-	// RouteTypeAdmin indicates admin operations
+	// RouteTypeAdmin indicates admin operations.
 	RouteTypeAdmin CommunicationRouteType = "admin"
 
-	// RouteTypeManagement indicates management operations
+	// RouteTypeManagement indicates management operations.
 	RouteTypeManagement CommunicationRouteType = "management"
 
-	// RouteTypeLifecycleStart indicates lifecycle start hook
+	// RouteTypeLifecycleStart indicates lifecycle start hook.
 	RouteTypeLifecycleStart CommunicationRouteType = "lifecycle.start"
 
-	// RouteTypeLifecycleStop indicates lifecycle stop hook
+	// RouteTypeLifecycleStop indicates lifecycle stop hook.
 	RouteTypeLifecycleStop CommunicationRouteType = "lifecycle.stop"
 
-	// RouteTypeLifecycleReload indicates lifecycle reload hook
+	// RouteTypeLifecycleReload indicates lifecycle reload hook.
 	RouteTypeLifecycleReload CommunicationRouteType = "lifecycle.reload"
 
-	// RouteTypeConfigUpdate indicates config update
+	// RouteTypeConfigUpdate indicates config update.
 	RouteTypeConfigUpdate CommunicationRouteType = "config.update"
 
-	// RouteTypeConfigQuery indicates config query
+	// RouteTypeConfigQuery indicates config query.
 	RouteTypeConfigQuery CommunicationRouteType = "config.query"
 
-	// RouteTypeEventPoll indicates event polling
+	// RouteTypeEventPoll indicates event polling.
 	RouteTypeEventPoll CommunicationRouteType = "event.poll"
 
-	// RouteTypeEventAck indicates event acknowledgment
+	// RouteTypeEventAck indicates event acknowledgment.
 	RouteTypeEventAck CommunicationRouteType = "event.ack"
 
-	// RouteTypeHealthCheck indicates health check
+	// RouteTypeHealthCheck indicates health check.
 	RouteTypeHealthCheck CommunicationRouteType = "health.check"
 
-	// RouteTypeStatusQuery indicates status query
+	// RouteTypeStatusQuery indicates status query.
 	RouteTypeStatusQuery CommunicationRouteType = "status.query"
 
-	// RouteTypeSchemaQuery indicates schema query
+	// RouteTypeSchemaQuery indicates schema query.
 	RouteTypeSchemaQuery CommunicationRouteType = "schema.query"
 
-	// RouteTypeSchemaValidate indicates schema validation
+	// RouteTypeSchemaValidate indicates schema validation.
 	RouteTypeSchemaValidate CommunicationRouteType = "schema.validate"
 
-	// RouteTypeMetricsQuery indicates metrics query
+	// RouteTypeMetricsQuery indicates metrics query.
 	RouteTypeMetricsQuery CommunicationRouteType = "metrics.query"
 
-	// RouteTypeTracingExport indicates tracing export
+	// RouteTypeTracingExport indicates tracing export.
 	RouteTypeTracingExport CommunicationRouteType = "tracing.export"
 
-	// RouteTypeCustom indicates custom route type
+	// RouteTypeCustom indicates custom route type.
 	RouteTypeCustom CommunicationRouteType = "custom"
 )
 
-// String returns the string representation of the communication route type
+// String returns the string representation of the communication route type.
 func (crt CommunicationRouteType) String() string {
 	return string(crt)
 }
 
-// PollingConfig defines polling configuration
+// PollingConfig defines polling configuration.
 type PollingConfig struct {
 	// Polling interval
 	Interval string `json:"interval"` // Duration string
@@ -660,44 +660,44 @@ type PollingConfig struct {
 	LongPollingTimeout string `json:"long_polling_timeout,omitempty"`
 }
 
-// WebhookEventType defines types of webhook events
+// WebhookEventType defines types of webhook events.
 type WebhookEventType string
 
 const (
-	// EventSchemaUpdated indicates schema was updated
+	// EventSchemaUpdated indicates schema was updated.
 	EventSchemaUpdated WebhookEventType = "schema.updated"
 
-	// EventHealthChanged indicates health status changed
+	// EventHealthChanged indicates health status changed.
 	EventHealthChanged WebhookEventType = "health.changed"
 
-	// EventInstanceScaling indicates instance scaling event
+	// EventInstanceScaling indicates instance scaling event.
 	EventInstanceScaling WebhookEventType = "instance.scaling"
 
-	// EventMaintenanceMode indicates maintenance mode event
+	// EventMaintenanceMode indicates maintenance mode event.
 	EventMaintenanceMode WebhookEventType = "maintenance.mode"
 
-	// EventRateLimitChanged indicates rate limit changed
+	// EventRateLimitChanged indicates rate limit changed.
 	EventRateLimitChanged WebhookEventType = "ratelimit.changed"
 
-	// EventCircuitBreakerOpen indicates circuit breaker opened
+	// EventCircuitBreakerOpen indicates circuit breaker opened.
 	EventCircuitBreakerOpen WebhookEventType = "circuit.breaker.open"
 
-	// EventCircuitBreakerClosed indicates circuit breaker closed
+	// EventCircuitBreakerClosed indicates circuit breaker closed.
 	EventCircuitBreakerClosed WebhookEventType = "circuit.breaker.closed"
 
-	// EventConfigUpdated indicates config was updated
+	// EventConfigUpdated indicates config was updated.
 	EventConfigUpdated WebhookEventType = "config.updated"
 
-	// EventTrafficShift indicates traffic shift event
+	// EventTrafficShift indicates traffic shift event.
 	EventTrafficShift WebhookEventType = "traffic.shift"
 )
 
-// String returns the string representation of the webhook event type
+// String returns the string representation of the webhook event type.
 func (wet WebhookEventType) String() string {
 	return string(wet)
 }
 
-// RetryConfig defines retry configuration
+// RetryConfig defines retry configuration.
 type RetryConfig struct {
 	// Maximum retry attempts
 	MaxAttempts int `json:"max_attempts"`
@@ -712,7 +712,7 @@ type RetryConfig struct {
 	Multiplier float64 `json:"multiplier"`
 }
 
-// SchemaCompatibility provides schema compatibility metadata
+// SchemaCompatibility provides schema compatibility metadata.
 type SchemaCompatibility struct {
 	// Compatibility mode
 	Mode CompatibilityMode `json:"mode"`
@@ -727,35 +727,35 @@ type SchemaCompatibility struct {
 	Deprecations []Deprecation `json:"deprecations,omitempty"`
 }
 
-// CompatibilityMode defines schema compatibility guarantees
+// CompatibilityMode defines schema compatibility guarantees.
 type CompatibilityMode string
 
 const (
-	// CompatibilityBackward indicates new schema can read data written by old schema
+	// CompatibilityBackward indicates new schema can read data written by old schema.
 	CompatibilityBackward CompatibilityMode = "backward"
 
-	// CompatibilityForward indicates old schema can read data written by new schema
+	// CompatibilityForward indicates old schema can read data written by new schema.
 	CompatibilityForward CompatibilityMode = "forward"
 
-	// CompatibilityFull indicates both backward and forward compatible
+	// CompatibilityFull indicates both backward and forward compatible.
 	CompatibilityFull CompatibilityMode = "full"
 
-	// CompatibilityNone indicates breaking changes, no compatibility guaranteed
+	// CompatibilityNone indicates breaking changes, no compatibility guaranteed.
 	CompatibilityNone CompatibilityMode = "none"
 
-	// CompatibilityBackwardTransitive indicates transitive backward compatibility across N versions
+	// CompatibilityBackwardTransitive indicates transitive backward compatibility across N versions.
 	CompatibilityBackwardTransitive CompatibilityMode = "backward_transitive"
 
-	// CompatibilityForwardTransitive indicates transitive forward compatibility across N versions
+	// CompatibilityForwardTransitive indicates transitive forward compatibility across N versions.
 	CompatibilityForwardTransitive CompatibilityMode = "forward_transitive"
 )
 
-// String returns the string representation of the compatibility mode
+// String returns the string representation of the compatibility mode.
 func (cm CompatibilityMode) String() string {
 	return string(cm)
 }
 
-// BreakingChange describes a breaking change in a schema
+// BreakingChange describes a breaking change in a schema.
 type BreakingChange struct {
 	// Type of breaking change
 	Type ChangeType `json:"type"`
@@ -773,60 +773,60 @@ type BreakingChange struct {
 	Migration string `json:"migration,omitempty"`
 }
 
-// ChangeType defines types of schema changes
+// ChangeType defines types of schema changes.
 type ChangeType string
 
 const (
-	// ChangeTypeFieldRemoved indicates a field was removed
+	// ChangeTypeFieldRemoved indicates a field was removed.
 	ChangeTypeFieldRemoved ChangeType = "field_removed"
 
-	// ChangeTypeFieldTypeChanged indicates a field type was changed
+	// ChangeTypeFieldTypeChanged indicates a field type was changed.
 	ChangeTypeFieldTypeChanged ChangeType = "field_type_changed"
 
-	// ChangeTypeFieldRequired indicates a field became required
+	// ChangeTypeFieldRequired indicates a field became required.
 	ChangeTypeFieldRequired ChangeType = "field_required"
 
-	// ChangeTypeEndpointRemoved indicates an endpoint was removed
+	// ChangeTypeEndpointRemoved indicates an endpoint was removed.
 	ChangeTypeEndpointRemoved ChangeType = "endpoint_removed"
 
-	// ChangeTypeEndpointChanged indicates an endpoint was changed
+	// ChangeTypeEndpointChanged indicates an endpoint was changed.
 	ChangeTypeEndpointChanged ChangeType = "endpoint_changed"
 
-	// ChangeTypeEnumValueRemoved indicates an enum value was removed
+	// ChangeTypeEnumValueRemoved indicates an enum value was removed.
 	ChangeTypeEnumValueRemoved ChangeType = "enum_value_removed"
 
-	// ChangeTypeMethodRemoved indicates a method was removed
+	// ChangeTypeMethodRemoved indicates a method was removed.
 	ChangeTypeMethodRemoved ChangeType = "method_removed"
 )
 
-// String returns the string representation of the change type
+// String returns the string representation of the change type.
 func (ct ChangeType) String() string {
 	return string(ct)
 }
 
-// ChangeSeverity defines the severity of a schema change
+// ChangeSeverity defines the severity of a schema change.
 type ChangeSeverity string
 
 const (
-	// SeverityCritical indicates immediate breakage
+	// SeverityCritical indicates immediate breakage.
 	SeverityCritical ChangeSeverity = "critical"
 
-	// SeverityHigh indicates likely breakage
+	// SeverityHigh indicates likely breakage.
 	SeverityHigh ChangeSeverity = "high"
 
-	// SeverityMedium indicates possible breakage
+	// SeverityMedium indicates possible breakage.
 	SeverityMedium ChangeSeverity = "medium"
 
-	// SeverityLow indicates minimal risk
+	// SeverityLow indicates minimal risk.
 	SeverityLow ChangeSeverity = "low"
 )
 
-// String returns the string representation of the change severity
+// String returns the string representation of the change severity.
 func (cs ChangeSeverity) String() string {
 	return string(cs)
 }
 
-// Deprecation describes a deprecated schema element
+// Deprecation describes a deprecated schema element.
 type Deprecation struct {
 	// Path in schema
 	Path string `json:"path"`
@@ -847,7 +847,7 @@ type Deprecation struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// ServiceHints provides operational hints for the gateway
+// ServiceHints provides operational hints for the gateway.
 type ServiceHints struct {
 	// Recommended timeout for operations
 	RecommendedTimeout string `json:"recommended_timeout,omitempty"`
@@ -862,7 +862,7 @@ type ServiceHints struct {
 	Dependencies []ServiceDependency `json:"dependencies,omitempty"`
 }
 
-// LatencyProfile describes expected latency characteristics
+// LatencyProfile describes expected latency characteristics.
 type LatencyProfile struct {
 	// Median latency
 	P50 string `json:"p50,omitempty"` // e.g., "10ms"
@@ -877,7 +877,7 @@ type LatencyProfile struct {
 	P999 string `json:"p999,omitempty"` // e.g., "500ms"
 }
 
-// ScalingProfile describes scaling characteristics
+// ScalingProfile describes scaling characteristics.
 type ScalingProfile struct {
 	// Auto-scaling enabled
 	AutoScale bool `json:"auto_scale"`
@@ -895,7 +895,7 @@ type ScalingProfile struct {
 	TargetMemory float64 `json:"target_memory,omitempty"` // 0.0-1.0
 }
 
-// ServiceDependency describes a service dependency
+// ServiceDependency describes a service dependency.
 type ServiceDependency struct {
 	// Service name
 	ServiceName string `json:"service_name"`
@@ -913,7 +913,7 @@ type ServiceDependency struct {
 	UsedOperations []string `json:"used_operations,omitempty"`
 }
 
-// RouteMetadata provides per-route metadata
+// RouteMetadata provides per-route metadata.
 type RouteMetadata struct {
 	// Operation/route identifier
 	OperationID string `json:"operation_id"`
@@ -949,57 +949,57 @@ type RouteMetadata struct {
 	RateLimitHint int `json:"rate_limit_hint,omitempty"`
 }
 
-// DataSensitivity defines data sensitivity levels
+// DataSensitivity defines data sensitivity levels.
 type DataSensitivity string
 
 const (
-	// SensitivityPublic indicates public data
+	// SensitivityPublic indicates public data.
 	SensitivityPublic DataSensitivity = "public"
 
-	// SensitivityInternal indicates internal data
+	// SensitivityInternal indicates internal data.
 	SensitivityInternal DataSensitivity = "internal"
 
-	// SensitivityConfidential indicates confidential data
+	// SensitivityConfidential indicates confidential data.
 	SensitivityConfidential DataSensitivity = "confidential"
 
-	// SensitivityPII indicates personally identifiable information
+	// SensitivityPII indicates personally identifiable information.
 	SensitivityPII DataSensitivity = "pii"
 
-	// SensitivityPHI indicates protected health information
+	// SensitivityPHI indicates protected health information.
 	SensitivityPHI DataSensitivity = "phi"
 
-	// SensitivityPCI indicates payment card industry data
+	// SensitivityPCI indicates payment card industry data.
 	SensitivityPCI DataSensitivity = "pci"
 )
 
-// String returns the string representation of the data sensitivity
+// String returns the string representation of the data sensitivity.
 func (ds DataSensitivity) String() string {
 	return string(ds)
 }
 
-// SizeHint provides hints about expected data size
+// SizeHint provides hints about expected data size.
 type SizeHint string
 
 const (
-	// SizeSmall indicates < 1KB
+	// SizeSmall indicates < 1KB.
 	SizeSmall SizeHint = "small"
 
-	// SizeMedium indicates 1KB - 100KB
+	// SizeMedium indicates 1KB - 100KB.
 	SizeMedium SizeHint = "medium"
 
-	// SizeLarge indicates 100KB - 1MB
+	// SizeLarge indicates 100KB - 1MB.
 	SizeLarge SizeHint = "large"
 
-	// SizeXLarge indicates > 1MB
+	// SizeXLarge indicates > 1MB.
 	SizeXLarge SizeHint = "xlarge"
 )
 
-// String returns the string representation of the size hint
+// String returns the string representation of the size hint.
 func (sh SizeHint) String() string {
 	return string(sh)
 }
 
-// ProtocolMetadata provides protocol-specific metadata
+// ProtocolMetadata provides protocol-specific metadata.
 type ProtocolMetadata struct {
 	// GraphQL-specific metadata
 	GraphQL *GraphQLMetadata `json:"graphql,omitempty"`
@@ -1017,7 +1017,7 @@ type ProtocolMetadata struct {
 	ORPC *ORPCMetadata `json:"orpc,omitempty"`
 }
 
-// GraphQLMetadata provides GraphQL-specific metadata
+// GraphQLMetadata provides GraphQL-specific metadata.
 type GraphQLMetadata struct {
 	// Federation configuration
 	Federation *GraphQLFederation `json:"federation,omitempty"`
@@ -1035,7 +1035,7 @@ type GraphQLMetadata struct {
 	DepthLimit int `json:"depth_limit,omitempty"`
 }
 
-// GraphQLFederation provides GraphQL Federation metadata
+// GraphQLFederation provides GraphQL Federation metadata.
 type GraphQLFederation struct {
 	// Federation version
 	Version string `json:"version"` // "v1", "v2"
@@ -1056,7 +1056,7 @@ type GraphQLFederation struct {
 	Requires []RequiresRelation `json:"requires,omitempty"`
 }
 
-// FederatedEntity describes a federated GraphQL entity
+// FederatedEntity describes a federated GraphQL entity.
 type FederatedEntity struct {
 	// Type name
 	TypeName string `json:"type_name"`
@@ -1071,7 +1071,7 @@ type FederatedEntity struct {
 	Resolvable bool `json:"resolvable"`
 }
 
-// ProvidesRelation describes a GraphQL @provides relationship
+// ProvidesRelation describes a GraphQL @provides relationship.
 type ProvidesRelation struct {
 	// Field path
 	Field string `json:"field"`
@@ -1080,7 +1080,7 @@ type ProvidesRelation struct {
 	Fields []string `json:"fields"`
 }
 
-// RequiresRelation describes a GraphQL @requires relationship
+// RequiresRelation describes a GraphQL @requires relationship.
 type RequiresRelation struct {
 	// Field path
 	Field string `json:"field"`
@@ -1089,7 +1089,7 @@ type RequiresRelation struct {
 	Fields []string `json:"fields"`
 }
 
-// GRPCMetadata provides gRPC-specific metadata
+// GRPCMetadata provides gRPC-specific metadata.
 type GRPCMetadata struct {
 	// Reflection enabled
 	ReflectionEnabled bool `json:"reflection_enabled"`
@@ -1116,10 +1116,10 @@ type GRPCMetadata struct {
 	BidirectionalStreamingEnabled bool `json:"bidirectional_streaming_enabled,omitempty"`
 }
 
-// OpenAPIMetadata provides OpenAPI-specific metadata
+// OpenAPIMetadata provides OpenAPI-specific metadata.
 type OpenAPIMetadata struct {
 	// x-extension fields to preserve
-	Extensions map[string]interface{} `json:"extensions,omitempty"`
+	Extensions map[string]any `json:"extensions,omitempty"`
 
 	// Server variables for URL templating
 	ServerVariables map[string]ServerVariable `json:"server_variables,omitempty"`
@@ -1131,7 +1131,7 @@ type OpenAPIMetadata struct {
 	Composition *CompositionConfig `json:"composition,omitempty"`
 }
 
-// CompositionConfig defines how this schema should be composed with others
+// CompositionConfig defines how this schema should be composed with others.
 type CompositionConfig struct {
 	// Include this schema in merged/federated API documentation
 	IncludeInMerged bool `json:"include_in_merged"`
@@ -1156,32 +1156,32 @@ type CompositionConfig struct {
 	CustomServers []OpenAPIServer `json:"custom_servers,omitempty"`
 }
 
-// ConflictStrategy defines how to handle conflicts during composition
+// ConflictStrategy defines how to handle conflicts during composition.
 type ConflictStrategy string
 
 const (
-	// ConflictStrategyPrefix adds service prefix to conflicting items
+	// ConflictStrategyPrefix adds service prefix to conflicting items.
 	ConflictStrategyPrefix ConflictStrategy = "prefix"
 
-	// ConflictStrategyError fails composition on conflicts
+	// ConflictStrategyError fails composition on conflicts.
 	ConflictStrategyError ConflictStrategy = "error"
 
-	// ConflictStrategySkip skips conflicting items from this service
+	// ConflictStrategySkip skips conflicting items from this service.
 	ConflictStrategySkip ConflictStrategy = "skip"
 
-	// ConflictStrategyOverwrite overwrites existing with this service's version
+	// ConflictStrategyOverwrite overwrites existing with this service's version.
 	ConflictStrategyOverwrite ConflictStrategy = "overwrite"
 
-	// ConflictStrategyMerge attempts to merge conflicting schemas
+	// ConflictStrategyMerge attempts to merge conflicting schemas.
 	ConflictStrategyMerge ConflictStrategy = "merge"
 )
 
-// String returns the string representation of the conflict strategy
+// String returns the string representation of the conflict strategy.
 func (cs ConflictStrategy) String() string {
 	return string(cs)
 }
 
-// OpenAPIServer represents an OpenAPI server definition
+// OpenAPIServer represents an OpenAPI server definition.
 type OpenAPIServer struct {
 	// Server URL
 	URL string `json:"url"`
@@ -1193,7 +1193,7 @@ type OpenAPIServer struct {
 	Variables map[string]ServerVariable `json:"variables,omitempty"`
 }
 
-// ServerVariable describes an OpenAPI server variable
+// ServerVariable describes an OpenAPI server variable.
 type ServerVariable struct {
 	// Default value
 	Default string `json:"default"`
@@ -1205,19 +1205,19 @@ type ServerVariable struct {
 	Description string `json:"description,omitempty"`
 }
 
-// AsyncAPIMetadata provides AsyncAPI-specific metadata
+// AsyncAPIMetadata provides AsyncAPI-specific metadata.
 type AsyncAPIMetadata struct {
 	// Message broker type
 	Protocol string `json:"protocol"` // "kafka", "amqp", "mqtt", "ws"
 
 	// Channel bindings
-	ChannelBindings map[string]interface{} `json:"channel_bindings,omitempty"`
+	ChannelBindings map[string]any `json:"channel_bindings,omitempty"`
 
 	// Message bindings
-	MessageBindings map[string]interface{} `json:"message_bindings,omitempty"`
+	MessageBindings map[string]any `json:"message_bindings,omitempty"`
 }
 
-// ORPCMetadata provides oRPC-specific metadata
+// ORPCMetadata provides oRPC-specific metadata.
 type ORPCMetadata struct {
 	// Batch operations supported
 	BatchEnabled bool `json:"batch_enabled,omitempty"`

@@ -27,7 +27,6 @@ linters:
   # Enable specific linter.
   enable:
     - arangolint
-    - asasalint
     - asciicheck
     - bidichk
     - bodyclose
@@ -49,7 +48,6 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - exhaustruct
     - exptostd
     - fatcontext
     - forbidigo
@@ -135,123 +133,14 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
-    - wsl
     - wsl_v5
     - zerologlint
   # Disable specific linters.
   disable:
-    - arangolint
     - asasalint
-    - asciicheck
-    - bidichk
-    - bodyclose
-    - canonicalheader
-    - containedctx
-    - contextcheck
-    - copyloopvar
-    - cyclop
-    - decorder
-    - depguard
-    - dogsled
-    - dupl
-    - dupword
-    - durationcheck
-    - embeddedstructfieldcheck
-    - err113
-    - errcheck
-    - errchkjson
-    - errname
-    - errorlint
-    - exhaustive
-    - exhaustruct
-    - exptostd
-    - fatcontext
-    - forbidigo
-    - forcetypeassert
-    - funcorder
-    - funlen
-    - ginkgolinter
-    - gocheckcompilerdirectives
-    - gochecknoglobals
-    - gochecknoinits
-    - gochecksumtype
-    - gocognit
-    - goconst
-    - gocritic
-    - gocyclo
-    - godoclint
-    - godot
-    - godox
-    - goheader
-    - gomoddirectives
-    - gomodguard
-    - goprintffuncname
-    - gosec
-    - gosmopolitan
-    - govet
-    - grouper
-    - iface
-    - importas
-    - inamedparam
-    - ineffassign
-    - interfacebloat
-    - intrange
-    - iotamixing
-    - ireturn
-    - lll
-    - loggercheck
-    - maintidx
-    - makezero
-    - mirror
-    - misspell
-    - mnd
-    - modernize
-    - musttag
-    - nakedret
-    - nestif
-    - nilerr
-    - nilnesserr
-    - nilnil
-    - nlreturn
-    - noctx
-    - noinlineerr
-    - nolintlint
-    - nonamedreturns
-    - nosprintfhostport
-    - paralleltest
-    - perfsprint
-    - prealloc
-    - predeclared
-    - promlinter
-    - protogetter
-    - reassign
-    - recvcheck
-    - revive
-    - rowserrcheck
-    - sloglint
-    - spancheck
-    - sqlclosecheck
-    - staticcheck
-    - tagalign
-    - tagliatelle
-    - testableexamples
-    - testifylint
-    - testpackage
-    - thelper
-    - tparallel
-    - unconvert
-    - unparam
-    - unqueryvet
-    - unused
-    - usestdlibvars
-    - usetesting
-    - varnamelen
-    - wastedassign
-    - whitespace
-    - wrapcheck
     - wsl
-    - wsl_v5
-    - zerologlint
+    - varnamelen
+    - exhaustruct
   # All available settings of specific linters.
   settings:
     # See the dedicated "linters.settings" documentation section.
@@ -275,6 +164,9 @@ linters:
     warn-unused: true
     # Predefined exclusion rules.
     # Default: []
+    paths:
+      - examples/
+      - farp-rust/
     presets:
       - comments
       - std-error-handling
@@ -289,22 +181,6 @@ linters:
           - errcheck
           - dupl
           - gosec
-      - path: examples/
-        linters:
-          - gocyclo
-          - errcheck
-          - dupl
-      # Run some linter only for test files by excluding its issues for everything else.
-      - path-except: _test\.go
-        linters:
-          - forbidigo
-      # Exclude known linters from partially hard-vendored code,
-      # which is impossible to exclude via `nolint` comments.
-      # `/` will be replaced by the current OS file path separator to properly work on Windows.
-      - path: internal/hmac/
-        text: "weak cryptographic primitive"
-        linters:
-          - gosec
       # Exclude some `staticcheck` messages.
       - linters:
           - staticcheck
@@ -313,17 +189,6 @@ linters:
       - linters:
           - lll
         source: "^//go:generate "
-    # Which file paths to exclude: they will be analyzed, but issues from them won't be reported.
-    # "/" will be replaced by the current OS file path separator to properly work on Windows.
-    # Default: []
-    paths:
-      - ".*\\.my\\.go$"
-      - lib/bad.go
-    # Which file paths to not exclude.
-    # Default: []
-    paths-except:
-      - ".*\\.my\\.go$"
-      - lib/bad.go
 
 
 issues:

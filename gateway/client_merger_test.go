@@ -21,6 +21,7 @@ func TestClient_GenerateMergedOpenAPI(t *testing.T) {
 	if err := registry.RegisterManifest(ctx, manifest1); err != nil {
 		t.Fatalf("Failed to register manifest1: %v", err)
 	}
+
 	if err := registry.RegisterManifest(ctx, manifest2); err != nil {
 		t.Fatalf("Failed to register manifest2: %v", err)
 	}
@@ -212,22 +213,23 @@ func createTestManifestWithOpenAPI(serviceName, version, instanceID string) *far
 			},
 		},
 	})
+
 	return manifest
 }
 
-func createTestOpenAPISchema(serviceName, path string) map[string]interface{} {
-	return map[string]interface{}{
+func createTestOpenAPISchema(serviceName, path string) map[string]any {
+	return map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   serviceName,
 			"version": "1.0.0",
 		},
-		"paths": map[string]interface{}{
-			path: map[string]interface{}{
-				"get": map[string]interface{}{
+		"paths": map[string]any{
+			path: map[string]any{
+				"get": map[string]any{
 					"operationId": serviceName + "_get",
 					"summary":     "Get " + serviceName,
-					"tags":        []interface{}{serviceName},
+					"tags":        []any{serviceName},
 				},
 			},
 		},

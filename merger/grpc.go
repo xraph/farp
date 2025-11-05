@@ -1,13 +1,14 @@
 package merger
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/xraph/farp"
 )
 
-// GRPCSpec represents a simplified gRPC service definition (protobuf-based)
+// GRPCSpec represents a simplified gRPC service definition (protobuf-based).
 type GRPCSpec struct {
 	Syntax          string                        `json:"syntax"` // proto3
 	Package         string                        `json:"package"`
@@ -18,7 +19,7 @@ type GRPCSpec struct {
 	Imports         []string                      `json:"imports,omitempty"`
 }
 
-// GRPCSecurityScheme represents gRPC authentication configuration
+// GRPCSecurityScheme represents gRPC authentication configuration.
 type GRPCSecurityScheme struct {
 	Type        string `json:"type"` // tls, oauth2, apiKey, custom
 	Description string `json:"description,omitempty"`
@@ -30,44 +31,44 @@ type GRPCSecurityScheme struct {
 	// API Key settings
 	KeyName string `json:"keyName,omitempty"`
 	// Custom metadata
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// GRPCTLSConfig represents TLS configuration for gRPC
+// GRPCTLSConfig represents TLS configuration for gRPC.
 type GRPCTLSConfig struct {
 	ServerName         string `json:"serverName,omitempty"`
 	RequireClientCert  bool   `json:"requireClientCert"`
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // Dev only
 }
 
-// GRPCService represents a gRPC service definition
+// GRPCService represents a gRPC service definition.
 type GRPCService struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Methods     map[string]GRPCMethod  `json:"methods"`
-	Options     map[string]interface{} `json:"options,omitempty"`
+	Name        string                `json:"name"`
+	Description string                `json:"description,omitempty"`
+	Methods     map[string]GRPCMethod `json:"methods"`
+	Options     map[string]any        `json:"options,omitempty"`
 }
 
-// GRPCMethod represents a gRPC method (RPC)
+// GRPCMethod represents a gRPC method (RPC).
 type GRPCMethod struct {
-	Name            string                 `json:"name"`
-	Description     string                 `json:"description,omitempty"`
-	InputType       string                 `json:"input_type"`
-	OutputType      string                 `json:"output_type"`
-	ClientStreaming bool                   `json:"client_streaming"`
-	ServerStreaming bool                   `json:"server_streaming"`
-	Options         map[string]interface{} `json:"options,omitempty"`
+	Name            string         `json:"name"`
+	Description     string         `json:"description,omitempty"`
+	InputType       string         `json:"input_type"`
+	OutputType      string         `json:"output_type"`
+	ClientStreaming bool           `json:"client_streaming"`
+	ServerStreaming bool           `json:"server_streaming"`
+	Options         map[string]any `json:"options,omitempty"`
 }
 
-// GRPCMessage represents a protobuf message
+// GRPCMessage represents a protobuf message.
 type GRPCMessage struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Fields      map[string]GRPCField   `json:"fields"`
-	Options     map[string]interface{} `json:"options,omitempty"`
+	Name        string               `json:"name"`
+	Description string               `json:"description,omitempty"`
+	Fields      map[string]GRPCField `json:"fields"`
+	Options     map[string]any       `json:"options,omitempty"`
 }
 
-// GRPCField represents a message field
+// GRPCField represents a message field.
 type GRPCField struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
@@ -76,33 +77,33 @@ type GRPCField struct {
 	Optional bool   `json:"optional"`
 }
 
-// GRPCEnum represents a protobuf enum
+// GRPCEnum represents a protobuf enum.
 type GRPCEnum struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`
 	Values      map[string]int `json:"values"`
 }
 
-// GRPCServiceSchema wraps a gRPC schema with its service context
+// GRPCServiceSchema wraps a gRPC schema with its service context.
 type GRPCServiceSchema struct {
 	Manifest *farp.SchemaManifest
-	Schema   interface{}
+	Schema   any
 	Parsed   *GRPCSpec
 }
 
-// GRPCMerger handles gRPC schema composition
+// GRPCMerger handles gRPC schema composition.
 type GRPCMerger struct {
 	config MergerConfig
 }
 
-// NewGRPCMerger creates a new gRPC merger
+// NewGRPCMerger creates a new gRPC merger.
 func NewGRPCMerger(config MergerConfig) *GRPCMerger {
 	return &GRPCMerger{
 		config: config,
 	}
 }
 
-// GRPCMergeResult contains the merged gRPC spec and metadata
+// GRPCMergeResult contains the merged gRPC spec and metadata.
 type GRPCMergeResult struct {
 	Spec             *GRPCSpec
 	IncludedServices []string
@@ -111,7 +112,7 @@ type GRPCMergeResult struct {
 	Warnings         []string
 }
 
-// MergeGRPC merges multiple gRPC schemas from service manifests
+// MergeGRPC merges multiple gRPC schemas from service manifests.
 func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, error) {
 	result := &GRPCMergeResult{
 		Spec: &GRPCSpec{
@@ -141,6 +142,7 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 		// Check if this schema should be included
 		if !shouldIncludeGRPCInMerge(schema) {
 			result.ExcludedServices = append(result.ExcludedServices, serviceName)
+
 			continue
 		}
 
@@ -152,8 +154,10 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 			if err != nil {
 				result.Warnings = append(result.Warnings,
 					fmt.Sprintf("Failed to parse gRPC schema for %s: %v", serviceName, err))
+
 				continue
 			}
+
 			schema.Parsed = parsed
 		}
 
@@ -187,8 +191,9 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 						svcName, existingService, serviceName)
 
 				case farp.ConflictStrategySkip:
-					conflict.Resolution = fmt.Sprintf("Skipped service from %s", serviceName)
+					conflict.Resolution = "Skipped service from " + serviceName
 					result.Conflicts = append(result.Conflicts, conflict)
+
 					continue
 
 				case farp.ConflictStrategyOverwrite:
@@ -197,7 +202,7 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 
 				case farp.ConflictStrategyPrefix:
 					prefixedName = serviceName + "_" + svcName
-					conflict.Resolution = fmt.Sprintf("Prefixed to %s", prefixedName)
+					conflict.Resolution = "Prefixed to " + prefixedName
 					result.Conflicts = append(result.Conflicts, conflict)
 				}
 			}
@@ -219,9 +224,10 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 						Type:       "grpc_message",
 						Item:       msgName,
 						Services:   []string{existingService, serviceName},
-						Resolution: fmt.Sprintf("Skipped message from %s", serviceName),
+						Resolution: "Skipped message from " + serviceName,
 						Strategy:   strategy,
 					})
+
 					continue
 				}
 			}
@@ -237,6 +243,7 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 				result.Warnings = append(result.Warnings,
 					fmt.Sprintf("Enum %s from %s overwrites %s", enumName, serviceName, existingService))
 			}
+
 			result.Spec.Enums[prefixedName] = enum
 			seenEnums[prefixedName] = serviceName
 		}
@@ -257,8 +264,9 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 						name, existingService, serviceName)
 
 				case farp.ConflictStrategySkip:
-					conflict.Resolution = fmt.Sprintf("Skipped security scheme from %s", serviceName)
+					conflict.Resolution = "Skipped security scheme from " + serviceName
 					result.Conflicts = append(result.Conflicts, conflict)
+
 					continue
 
 				case farp.ConflictStrategyOverwrite:
@@ -267,10 +275,11 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 
 				case farp.ConflictStrategyPrefix:
 					prefixedName := serviceName + "_" + name
-					conflict.Resolution = fmt.Sprintf("Prefixed to %s", prefixedName)
+					conflict.Resolution = "Prefixed to " + prefixedName
 					result.Conflicts = append(result.Conflicts, conflict)
 					result.Spec.SecuritySchemes[prefixedName] = secScheme
 					seenSecuritySchemes[prefixedName] = serviceName
+
 					continue
 
 				case farp.ConflictStrategyMerge:
@@ -287,11 +296,11 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 	return result, nil
 }
 
-// ParseGRPCSchema parses a raw gRPC schema into structured format
-func ParseGRPCSchema(raw interface{}) (*GRPCSpec, error) {
-	schemaMap, ok := raw.(map[string]interface{})
+// ParseGRPCSchema parses a raw gRPC schema into structured format.
+func ParseGRPCSchema(raw any) (*GRPCSpec, error) {
+	schemaMap, ok := raw.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("schema must be a map")
+		return nil, errors.New("schema must be a map")
 	}
 
 	spec := &GRPCSpec{
@@ -309,32 +318,33 @@ func ParseGRPCSchema(raw interface{}) (*GRPCSpec, error) {
 	}
 
 	// Parse services
-	if services, ok := schemaMap["services"].(map[string]interface{}); ok {
+	if services, ok := schemaMap["services"].(map[string]any); ok {
 		spec.Services = parseGRPCServices(services)
 	}
 
 	// Parse messages
-	if messages, ok := schemaMap["messages"].(map[string]interface{}); ok {
+	if messages, ok := schemaMap["messages"].(map[string]any); ok {
 		spec.Messages = parseGRPCMessages(messages)
 	}
 
 	// Parse enums
-	if enums, ok := schemaMap["enums"].(map[string]interface{}); ok {
+	if enums, ok := schemaMap["enums"].(map[string]any); ok {
 		spec.Enums = parseGRPCEnums(enums)
 	}
 
 	// Parse security schemes
-	if securitySchemes, ok := schemaMap["securitySchemes"].(map[string]interface{}); ok {
+	if securitySchemes, ok := schemaMap["securitySchemes"].(map[string]any); ok {
 		spec.SecuritySchemes = parseGRPCSecuritySchemes(securitySchemes)
 	}
 
 	return spec, nil
 }
 
-func parseGRPCServices(services map[string]interface{}) map[string]GRPCService {
+func parseGRPCServices(services map[string]any) map[string]GRPCService {
 	result := make(map[string]GRPCService)
+
 	for name, svc := range services {
-		if svcMap, ok := svc.(map[string]interface{}); ok {
+		if svcMap, ok := svc.(map[string]any); ok {
 			service := GRPCService{
 				Name:    name,
 				Methods: make(map[string]GRPCMethod),
@@ -342,42 +352,52 @@ func parseGRPCServices(services map[string]interface{}) map[string]GRPCService {
 			if desc, ok := svcMap["description"].(string); ok {
 				service.Description = desc
 			}
-			if methods, ok := svcMap["methods"].(map[string]interface{}); ok {
+
+			if methods, ok := svcMap["methods"].(map[string]any); ok {
 				service.Methods = parseGRPCMethods(methods)
 			}
+
 			result[name] = service
 		}
 	}
+
 	return result
 }
 
-func parseGRPCMethods(methods map[string]interface{}) map[string]GRPCMethod {
+func parseGRPCMethods(methods map[string]any) map[string]GRPCMethod {
 	result := make(map[string]GRPCMethod)
+
 	for name, m := range methods {
-		if methodMap, ok := m.(map[string]interface{}); ok {
+		if methodMap, ok := m.(map[string]any); ok {
 			method := GRPCMethod{Name: name}
 			if input, ok := methodMap["input_type"].(string); ok {
 				method.InputType = input
 			}
+
 			if output, ok := methodMap["output_type"].(string); ok {
 				method.OutputType = output
 			}
+
 			if stream, ok := methodMap["client_streaming"].(bool); ok {
 				method.ClientStreaming = stream
 			}
+
 			if stream, ok := methodMap["server_streaming"].(bool); ok {
 				method.ServerStreaming = stream
 			}
+
 			result[name] = method
 		}
 	}
+
 	return result
 }
 
-func parseGRPCMessages(messages map[string]interface{}) map[string]GRPCMessage {
+func parseGRPCMessages(messages map[string]any) map[string]GRPCMessage {
 	result := make(map[string]GRPCMessage)
+
 	for name, msg := range messages {
-		if msgMap, ok := msg.(map[string]interface{}); ok {
+		if msgMap, ok := msg.(map[string]any); ok {
 			message := GRPCMessage{
 				Name:   name,
 				Fields: make(map[string]GRPCField),
@@ -386,78 +406,94 @@ func parseGRPCMessages(messages map[string]interface{}) map[string]GRPCMessage {
 				message.Description = desc
 			}
 			// Parse fields (simplified)
-			if fields, ok := msgMap["fields"].(map[string]interface{}); ok {
+			if fields, ok := msgMap["fields"].(map[string]any); ok {
 				for fieldName, field := range fields {
-					if fieldMap, ok := field.(map[string]interface{}); ok {
+					if fieldMap, ok := field.(map[string]any); ok {
 						f := GRPCField{Name: fieldName}
 						if t, ok := fieldMap["type"].(string); ok {
 							f.Type = t
 						}
+
 						if n, ok := fieldMap["number"].(float64); ok {
 							f.Number = int(n)
 						}
+
 						message.Fields[fieldName] = f
 					}
 				}
 			}
+
 			result[name] = message
 		}
 	}
+
 	return result
 }
 
-func parseGRPCEnums(enums map[string]interface{}) map[string]GRPCEnum {
+func parseGRPCEnums(enums map[string]any) map[string]GRPCEnum {
 	result := make(map[string]GRPCEnum)
+
 	for name, e := range enums {
-		if enumMap, ok := e.(map[string]interface{}); ok {
+		if enumMap, ok := e.(map[string]any); ok {
 			enum := GRPCEnum{
 				Name:   name,
 				Values: make(map[string]int),
 			}
-			if values, ok := enumMap["values"].(map[string]interface{}); ok {
+
+			if values, ok := enumMap["values"].(map[string]any); ok {
 				for valName, val := range values {
 					if v, ok := val.(float64); ok {
 						enum.Values[valName] = int(v)
 					}
 				}
 			}
+
 			result[name] = enum
 		}
 	}
+
 	return result
 }
 
-func parseGRPCSecuritySchemes(schemes map[string]interface{}) map[string]GRPCSecurityScheme {
+func parseGRPCSecuritySchemes(schemes map[string]any) map[string]GRPCSecurityScheme {
 	result := make(map[string]GRPCSecurityScheme)
+
 	for name, s := range schemes {
-		if schemeMap, ok := s.(map[string]interface{}); ok {
+		if schemeMap, ok := s.(map[string]any); ok {
 			scheme := GRPCSecurityScheme{}
 			if t, ok := schemeMap["type"].(string); ok {
 				scheme.Type = t
 			}
+
 			if desc, ok := schemeMap["description"].(string); ok {
 				scheme.Description = desc
 			}
+
 			if tokenURL, ok := schemeMap["tokenUrl"].(string); ok {
 				scheme.TokenURL = tokenURL
 			}
+
 			if keyName, ok := schemeMap["keyName"].(string); ok {
 				scheme.KeyName = keyName
 			}
 			// Parse TLS config if present
-			if tls, ok := schemeMap["tls"].(map[string]interface{}); ok {
+			if tls, ok := schemeMap["tls"].(map[string]any); ok {
 				tlsConfig := &GRPCTLSConfig{}
 				if serverName, ok := tls["serverName"].(string); ok {
 					tlsConfig.ServerName = serverName
 				}
+
 				if requireClient, ok := tls["requireClientCert"].(bool); ok {
 					tlsConfig.RequireClientCert = requireClient
 				}
+
 				scheme.TLS = tlsConfig
 			}
+
 			result[name] = scheme
 		}
 	}
+
 	return result
 }
 
@@ -469,6 +505,7 @@ func shouldIncludeGRPCInMerge(schema GRPCServiceSchema) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -481,6 +518,7 @@ func (m *GRPCMerger) getConflictStrategy(config *farp.CompositionConfig) farp.Co
 	if config != nil && config.ConflictStrategy != "" {
 		return config.ConflictStrategy
 	}
+
 	return m.config.DefaultConflictStrategy
 }
 
@@ -488,6 +526,7 @@ func getGRPCServicePrefix(manifest *farp.SchemaManifest, config *farp.Compositio
 	if config != nil && config.ComponentPrefix != "" {
 		return config.ComponentPrefix
 	}
+
 	return manifest.ServiceName
 }
 
@@ -495,15 +534,18 @@ func getGRPCMessagePrefix(manifest *farp.SchemaManifest, config *farp.Compositio
 	if config != nil && config.ComponentPrefix != "" {
 		return config.ComponentPrefix
 	}
+
 	return manifest.ServiceName
 }
 
-// SortServices sorts service names alphabetically
+// SortServices sorts service names alphabetically.
 func SortGRPCServices(services map[string]GRPCService) []string {
 	keys := make([]string, 0, len(services))
 	for k := range services {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
+
 	return keys
 }

@@ -99,7 +99,8 @@ func TestManifest_UpdateChecksum(t *testing.T) {
 
 	manifest.AddSchema(schema)
 
-	if err := manifest.UpdateChecksum(); err != nil {
+	err := manifest.UpdateChecksum()
+	if err != nil {
 		t.Fatalf("UpdateChecksum failed: %v", err)
 	}
 
@@ -135,6 +136,7 @@ func TestManifest_Validate(t *testing.T) {
 					Size:        1024,
 				})
 				m.UpdateChecksum()
+
 				return m
 			},
 			wantErr: false,
@@ -144,6 +146,7 @@ func TestManifest_Validate(t *testing.T) {
 			setup: func() *SchemaManifest {
 				m := NewManifest("", "v1.0.0", "instance-123")
 				m.Endpoints.Health = "/health"
+
 				return m
 			},
 			wantErr: true,
@@ -153,6 +156,7 @@ func TestManifest_Validate(t *testing.T) {
 			setup: func() *SchemaManifest {
 				m := NewManifest("test-service", "v1.0.0", "")
 				m.Endpoints.Health = "/health"
+
 				return m
 			},
 			wantErr: true,
@@ -161,6 +165,7 @@ func TestManifest_Validate(t *testing.T) {
 			name: "missing health endpoint",
 			setup: func() *SchemaManifest {
 				m := NewManifest("test-service", "v1.0.0", "instance-123")
+
 				return m
 			},
 			wantErr: true,
@@ -181,6 +186,7 @@ func TestManifest_Validate(t *testing.T) {
 					Hash:        "1234567890123456789012345678901234567890123456789012345678901234",
 					Size:        1024,
 				})
+
 				return m
 			},
 			wantErr: true,
@@ -225,6 +231,7 @@ func TestManifest_GetSchema(t *testing.T) {
 	if !found {
 		t.Error("expected to find OpenAPI schema")
 	}
+
 	if schema.Type != SchemaTypeOpenAPI {
 		t.Errorf("expected OpenAPI type, got %s", schema.Type)
 	}
@@ -250,6 +257,7 @@ func TestManifest_Clone(t *testing.T) {
 		Hash:        "abc123",
 		Size:        1024,
 	})
+
 	original.Endpoints.Health = "/health"
 
 	clone := original.Clone()
@@ -345,9 +353,9 @@ func TestFromJSON_Invalid(t *testing.T) {
 }
 
 func TestCalculateSchemaChecksum(t *testing.T) {
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   "Test API",
 			"version": "1.0.0",
 		},
@@ -373,7 +381,8 @@ func TestCalculateSchemaChecksum(t *testing.T) {
 	}
 
 	// Different schema should produce different checksum
-	schema["info"].(map[string]interface{})["version"] = "2.0.0"
+	schema["info"].(map[string]any)["version"] = "2.0.0"
+
 	checksum3, err := CalculateSchemaChecksum(schema)
 	if err != nil {
 		t.Fatalf("CalculateSchemaChecksum failed: %v", err)
@@ -634,7 +643,7 @@ func TestDiffManifests_EndpointChanges(t *testing.T) {
 
 func BenchmarkManifest_UpdateChecksum(b *testing.B) {
 	manifest := NewManifest("test-service", "v1.0.0", "instance-123")
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		manifest.AddSchema(SchemaDescriptor{
 			Type:        SchemaTypeOpenAPI,
 			SpecVersion: "3.1.0",
@@ -646,32 +655,34 @@ func BenchmarkManifest_UpdateChecksum(b *testing.B) {
 	}
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		manifest.UpdateChecksum()
 	}
 }
 
 func BenchmarkCalculateSchemaChecksum(b *testing.B) {
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   "Test API",
 			"version": "1.0.0",
 		},
-		"paths": make(map[string]interface{}),
+		"paths": make(map[string]any),
 	}
 
 	// Add 100 paths
-	paths := schema["paths"].(map[string]interface{})
-	for i := 0; i < 100; i++ {
-		paths["/path"+string(rune(i))] = map[string]interface{}{
-			"get": map[string]interface{}{
+	paths := schema["paths"].(map[string]any)
+	for i := range 100 {
+		paths["/path"+string(rune(i))] = map[string]any{
+			"get": map[string]any{
 				"summary": "Test endpoint",
 			},
 		}
 	}
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		CalculateSchemaChecksum(schema)
 	}

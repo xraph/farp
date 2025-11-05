@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,9 @@ func TestNewRegistry(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := registry.Health(ctx); err != nil {
+
+	err := registry.Health(ctx)
+	if err != nil {
 		t.Errorf("expected healthy registry, got error: %v", err)
 	}
 }
@@ -42,6 +45,7 @@ func TestRegistry_RegisterManifest(t *testing.T) {
 	manifest.UpdateChecksum()
 
 	ctx := context.Background()
+
 	err := registry.RegisterManifest(ctx, manifest)
 	if err != nil {
 		t.Fatalf("RegisterManifest failed: %v", err)
@@ -65,7 +69,7 @@ func TestRegistry_GetManifest_NotFound(t *testing.T) {
 	ctx := context.Background()
 	_, err := registry.GetManifest(ctx, "non-existent")
 
-	if err != farp.ErrManifestNotFound {
+	if !errors.Is(err, farp.ErrManifestNotFound) {
 		t.Errorf("expected ErrManifestNotFound, got: %v", err)
 	}
 }
@@ -115,7 +119,7 @@ func TestRegistry_UpdateManifest_NotFound(t *testing.T) {
 	ctx := context.Background()
 	err := registry.UpdateManifest(ctx, manifest)
 
-	if err != farp.ErrManifestNotFound {
+	if !errors.Is(err, farp.ErrManifestNotFound) {
 		t.Errorf("expected ErrManifestNotFound, got: %v", err)
 	}
 }
@@ -137,7 +141,7 @@ func TestRegistry_DeleteManifest(t *testing.T) {
 
 	// Verify deletion
 	_, err = registry.GetManifest(ctx, manifest.InstanceID)
-	if err != farp.ErrManifestNotFound {
+	if !errors.Is(err, farp.ErrManifestNotFound) {
 		t.Error("expected manifest to be deleted")
 	}
 }
@@ -149,7 +153,7 @@ func TestRegistry_ListManifests(t *testing.T) {
 	ctx := context.Background()
 
 	// Register multiple manifests
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		manifest := farp.NewManifest("test-service", "v1.0.0", "instance-"+string(rune('0'+i)))
 		manifest.Endpoints.Health = "/health"
 		registry.RegisterManifest(ctx, manifest)
@@ -185,15 +189,16 @@ func TestRegistry_PublishAndFetchSchema(t *testing.T) {
 	registry := NewRegistry()
 	defer registry.Close()
 
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   "Test API",
 			"version": "1.0.0",
 		},
 	}
 
 	ctx := context.Background()
+
 	err := registry.PublishSchema(ctx, "/schemas/test/v1/openapi", schema)
 	if err != nil {
 		t.Fatalf("PublishSchema failed: %v", err)
@@ -205,7 +210,7 @@ func TestRegistry_PublishAndFetchSchema(t *testing.T) {
 		t.Fatalf("FetchSchema failed: %v", err)
 	}
 
-	fetchedMap, ok := fetched.(map[string]interface{})
+	fetchedMap, ok := fetched.(map[string]any)
 	if !ok {
 		t.Fatal("expected schema to be map[string]interface{}")
 	}
@@ -222,7 +227,7 @@ func TestRegistry_FetchSchema_NotFound(t *testing.T) {
 	ctx := context.Background()
 	_, err := registry.FetchSchema(ctx, "/non-existent")
 
-	if err != farp.ErrSchemaNotFound {
+	if !errors.Is(err, farp.ErrSchemaNotFound) {
 		t.Errorf("expected ErrSchemaNotFound, got: %v", err)
 	}
 }
@@ -231,7 +236,7 @@ func TestRegistry_DeleteSchema(t *testing.T) {
 	registry := NewRegistry()
 	defer registry.Close()
 
-	schema := map[string]interface{}{"test": "data"}
+	schema := map[string]any{"test": "data"}
 
 	ctx := context.Background()
 	registry.PublishSchema(ctx, "/schemas/test", schema)
@@ -243,7 +248,7 @@ func TestRegistry_DeleteSchema(t *testing.T) {
 
 	// Verify deletion
 	_, err = registry.FetchSchema(ctx, "/schemas/test")
-	if err != farp.ErrSchemaNotFound {
+	if !errors.Is(err, farp.ErrSchemaNotFound) {
 		t.Error("expected schema to be deleted")
 	}
 }
@@ -278,6 +283,7 @@ func TestRegistry_WatchManifests(t *testing.T) {
 		if event.Type != farp.EventTypeAdded {
 			t.Errorf("expected EventTypeAdded, got %s", event.Type)
 		}
+
 		if event.Manifest.InstanceID != manifest.InstanceID {
 			t.Error("event has wrong manifest")
 		}
@@ -368,12 +374,12 @@ func TestRegistry_Close(t *testing.T) {
 	manifest.Endpoints.Health = "/health"
 
 	err = registry.RegisterManifest(ctx, manifest)
-	if err != farp.ErrBackendUnavailable {
+	if !errors.Is(err, farp.ErrBackendUnavailable) {
 		t.Errorf("expected ErrBackendUnavailable after close, got: %v", err)
 	}
 
 	err = registry.Health(ctx)
-	if err != farp.ErrBackendUnavailable {
+	if !errors.Is(err, farp.ErrBackendUnavailable) {
 		t.Errorf("expected ErrBackendUnavailable after close, got: %v", err)
 	}
 }
@@ -389,7 +395,7 @@ func TestRegistry_Clear(t *testing.T) {
 	manifest.Endpoints.Health = "/health"
 	registry.RegisterManifest(ctx, manifest)
 
-	schema := map[string]interface{}{"test": "data"}
+	schema := map[string]any{"test": "data"}
 	registry.PublishSchema(ctx, "/test", schema)
 
 	// Clear
@@ -397,12 +403,12 @@ func TestRegistry_Clear(t *testing.T) {
 
 	// Verify everything is cleared
 	_, err := registry.GetManifest(ctx, manifest.InstanceID)
-	if err != farp.ErrManifestNotFound {
+	if !errors.Is(err, farp.ErrManifestNotFound) {
 		t.Error("expected manifests to be cleared")
 	}
 
 	_, err = registry.FetchSchema(ctx, "/test")
-	if err != farp.ErrSchemaNotFound {
+	if !errors.Is(err, farp.ErrSchemaNotFound) {
 		t.Error("expected schemas to be cleared")
 	}
 }
@@ -414,6 +420,7 @@ func BenchmarkRegistry_RegisterManifest(b *testing.B) {
 	ctx := context.Background()
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		manifest := farp.NewManifest("test-service", "v1.0.0", "instance-"+string(rune(i)))
 		manifest.Endpoints.Health = "/health"
@@ -431,6 +438,7 @@ func BenchmarkRegistry_GetManifest(b *testing.B) {
 	registry.RegisterManifest(ctx, manifest)
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		registry.GetManifest(ctx, manifest.InstanceID)
 	}
@@ -473,7 +481,7 @@ func TestRegistry_DeleteManifest_WithWatchers(t *testing.T) {
 		err := registry.WatchManifests(ctx, "test-service", func(event *farp.ManifestEvent) {
 			eventChan <- event
 		})
-		if err != nil && err != context.DeadlineExceeded {
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			t.Logf("WatchManifests error: %v", err)
 		}
 	}()
@@ -506,11 +514,13 @@ func TestRegistry_Close_WithWatchers(t *testing.T) {
 	// Start multiple watchers
 	watchersClosed := make(chan bool, 3)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		go func() {
 			err := registry.WatchManifests(ctx, "test-service", func(event *farp.ManifestEvent) {})
+
 			watchersClosed <- true
-			if err != nil && err != context.DeadlineExceeded {
+
+			if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 				t.Logf("WatchManifests error: %v", err)
 			}
 		}()
@@ -526,7 +536,8 @@ func TestRegistry_Close_WithWatchers(t *testing.T) {
 
 	// Verify all watchers are closed
 	closedCount := 0
-	for i := 0; i < 3; i++ {
+
+	for range 3 {
 		select {
 		case <-watchersClosed:
 			closedCount++

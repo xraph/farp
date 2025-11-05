@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// Mock storage backend for testing
+// Mock storage backend for testing.
 type mockStorageBackend struct {
 	data    map[string][]byte
 	watches map[string][]chan StorageEvent
@@ -34,6 +34,7 @@ func (m *mockStorageBackend) Put(ctx context.Context, key string, value []byte) 
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -42,6 +43,7 @@ func (m *mockStorageBackend) Get(ctx context.Context, key string) ([]byte, error
 	if !ok {
 		return nil, ErrSchemaNotFound
 	}
+
 	return value, nil
 }
 
@@ -58,16 +60,19 @@ func (m *mockStorageBackend) Delete(ctx context.Context, key string) error {
 			}
 		}
 	}
+
 	return nil
 }
 
 func (m *mockStorageBackend) List(ctx context.Context, prefix string) ([]string, error) {
 	keys := []string{}
+
 	for key := range m.data {
 		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
 			keys = append(keys, key)
 		}
 	}
+
 	return keys, nil
 }
 
@@ -110,7 +115,7 @@ func TestStorageHelper_PutJSON_GetJSON(t *testing.T) {
 
 	ctx := context.Background()
 	key := "test-key"
-	value := map[string]interface{}{
+	value := map[string]any{
 		"name": "test",
 		"age":  30,
 	}
@@ -122,7 +127,8 @@ func TestStorageHelper_PutJSON_GetJSON(t *testing.T) {
 	}
 
 	// Get JSON
-	var result map[string]interface{}
+	var result map[string]any
+
 	err = helper.GetJSON(ctx, key, &result)
 	if err != nil {
 		t.Fatalf("GetJSON() error = %v", err)
@@ -145,7 +151,7 @@ func TestStorageHelper_PutJSON_MaxSize(t *testing.T) {
 	key := "test-key"
 
 	// Create a large value that exceeds max size
-	largeValue := map[string]interface{}{
+	largeValue := map[string]any{
 		"data": string(make([]byte, 200)),
 	}
 
@@ -167,7 +173,7 @@ func TestStorageHelper_PutJSON_Compression(t *testing.T) {
 	key := "test-key"
 
 	// Create a value that triggers compression
-	value := map[string]interface{}{
+	value := map[string]any{
 		"data": "this is a long string that should trigger compression",
 	}
 
@@ -178,6 +184,7 @@ func TestStorageHelper_PutJSON_Compression(t *testing.T) {
 
 	// Verify compressed version exists
 	compressedKey := key + ".gz"
+
 	compressedData, err := backend.Get(ctx, compressedKey)
 	if err != nil {
 		t.Error("Expected compressed data to be stored")
@@ -188,10 +195,12 @@ func TestStorageHelper_PutJSON_Compression(t *testing.T) {
 	if err != nil {
 		t.Errorf("Data should be gzip compressed: %v", err)
 	}
+
 	reader.Close()
 
 	// Verify we can retrieve it
-	var result map[string]interface{}
+	var result map[string]any
+
 	err = helper.GetJSON(ctx, key, &result)
 	if err != nil {
 		t.Fatalf("GetJSON() error = %v", err)
@@ -207,7 +216,8 @@ func TestStorageHelper_GetJSON_NotFound(t *testing.T) {
 	helper := NewStorageHelper(backend, 1024, 10240)
 
 	ctx := context.Background()
-	var result map[string]interface{}
+
+	var result map[string]any
 
 	err := helper.GetJSON(ctx, "nonexistent", &result)
 	if err == nil {
@@ -296,6 +306,7 @@ func TestManifestStorage_GetNotFound(t *testing.T) {
 	storage := NewManifestStorage(backend, "farp", 1024, 10240)
 
 	ctx := context.Background()
+
 	_, err := storage.Get(ctx, "nonexistent", "instance-123")
 	if err == nil {
 		t.Error("Get() should return error for nonexistent manifest")
@@ -365,9 +376,9 @@ func TestManifestStorage_PutGetSchema(t *testing.T) {
 
 	ctx := context.Background()
 	path := "/schemas/test/v1/openapi"
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   "Test API",
 			"version": "1.0.0",
 		},
@@ -385,7 +396,7 @@ func TestManifestStorage_PutGetSchema(t *testing.T) {
 		t.Fatalf("GetSchema() error = %v", err)
 	}
 
-	retrievedMap, ok := retrieved.(map[string]interface{})
+	retrievedMap, ok := retrieved.(map[string]any)
 	if !ok {
 		t.Fatal("retrieved schema is not map[string]interface{}")
 	}
@@ -401,7 +412,7 @@ func TestManifestStorage_DeleteSchema(t *testing.T) {
 
 	ctx := context.Background()
 	path := "/schemas/test/v1/openapi"
-	schema := map[string]interface{}{"test": "data"}
+	schema := map[string]any{"test": "data"}
 
 	// Put schema
 	storage.PutSchema(ctx, path, schema)

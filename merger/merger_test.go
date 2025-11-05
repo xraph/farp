@@ -59,11 +59,13 @@ func TestMerger_Merge_MultipleServices(t *testing.T) {
 	// Check that paths from both services are present
 	// Default routing strategy is MountStrategyInstance
 	foundUsers, foundOrders := false, false
+
 	for path := range result.Spec.Paths {
 		// Paths are prefixed with instance ID by default
 		if path == "/instance-1/users" {
 			foundUsers = true
 		}
+
 		if path == "/instance-2/orders" {
 			foundOrders = true
 		}
@@ -71,6 +73,7 @@ func TestMerger_Merge_MultipleServices(t *testing.T) {
 
 	if !foundUsers || !foundOrders {
 		t.Errorf("Expected paths from both services to be present. Got paths: %v", result.Spec.Paths)
+
 		for path := range result.Spec.Paths {
 			t.Logf("  Path: %s", path)
 		}
@@ -108,9 +111,11 @@ func TestMerger_ConflictResolution_Prefix(t *testing.T) {
 
 	// Check that conflict was resolved with prefix
 	foundPrefixed := false
+
 	for _, conflict := range result.Conflicts {
 		if conflict.Strategy == farp.ConflictStrategyPrefix {
 			foundPrefixed = true
+
 			break
 		}
 	}
@@ -145,6 +150,7 @@ func TestMerger_ConflictResolution_Skip(t *testing.T) {
 
 	// Should only have one /users path (first one wins)
 	count := 0
+
 	for path := range result.Spec.Paths {
 		if path == "/users" {
 			count++
@@ -173,9 +179,11 @@ func TestMerger_ComponentPrefixing(t *testing.T) {
 
 	// Check that component names are prefixed
 	foundPrefixed := false
+
 	for name := range result.Spec.Components.Schemas {
 		if name == "user-service_User" {
 			foundPrefixed = true
+
 			break
 		}
 	}
@@ -216,6 +224,7 @@ func TestMerger_RoutingStrategies(t *testing.T) {
 
 			// Check path prefix
 			found := false
+
 			for path := range result.Spec.Paths {
 				if tt.expectedPrefix == "" {
 					if path == "/users" {
@@ -289,49 +298,50 @@ func createTestManifest(serviceName, version, instanceID string) *farp.SchemaMan
 			},
 		},
 	})
+
 	return manifest
 }
 
-func createTestOpenAPISchema(serviceName, path string) map[string]interface{} {
-	return map[string]interface{}{
+func createTestOpenAPISchema(serviceName, path string) map[string]any {
+	return map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   serviceName,
 			"version": "1.0.0",
 		},
-		"paths": map[string]interface{}{
-			path: map[string]interface{}{
-				"get": map[string]interface{}{
+		"paths": map[string]any{
+			path: map[string]any{
+				"get": map[string]any{
 					"operationId": serviceName + "_getUsers",
 					"summary":     "Get users",
-					"tags":        []interface{}{"users"},
+					"tags":        []any{"users"},
 				},
 			},
 		},
 	}
 }
 
-func createTestOpenAPIWithComponents(serviceName string) map[string]interface{} {
-	return map[string]interface{}{
+func createTestOpenAPIWithComponents(serviceName string) map[string]any {
+	return map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   serviceName,
 			"version": "1.0.0",
 		},
-		"paths": map[string]interface{}{
-			"/users": map[string]interface{}{
-				"get": map[string]interface{}{
+		"paths": map[string]any{
+			"/users": map[string]any{
+				"get": map[string]any{
 					"operationId": "getUsers",
 				},
 			},
 		},
-		"components": map[string]interface{}{
-			"schemas": map[string]interface{}{
-				"User": map[string]interface{}{
+		"components": map[string]any{
+			"schemas": map[string]any{
+				"User": map[string]any{
 					"type": "object",
-					"properties": map[string]interface{}{
-						"id":   map[string]interface{}{"type": "string"},
-						"name": map[string]interface{}{"type": "string"},
+					"properties": map[string]any{
+						"id":   map[string]any{"type": "string"},
+						"name": map[string]any{"type": "string"},
 					},
 				},
 			},

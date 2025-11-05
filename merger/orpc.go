@@ -1,84 +1,85 @@
 package merger
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/xraph/farp"
 )
 
-// ORPCSpec represents a simplified oRPC specification
+// ORPCSpec represents a simplified oRPC specification.
 type ORPCSpec struct {
 	ORPC            string                        `json:"orpc"`
 	Info            Info                          `json:"info"`
 	Servers         []Server                      `json:"servers,omitempty"`
 	Procedures      map[string]ORPCProcedure      `json:"procedures"`
-	Schemas         map[string]interface{}        `json:"schemas,omitempty"`
+	Schemas         map[string]any                `json:"schemas,omitempty"`
 	SecuritySchemes map[string]ORPCSecurityScheme `json:"securitySchemes,omitempty"`
 	Security        []map[string][]string         `json:"security,omitempty"`
-	Extensions      map[string]interface{}        `json:"-"`
+	Extensions      map[string]any                `json:"-"`
 }
 
-// ORPCSecurityScheme represents an oRPC security scheme
+// ORPCSecurityScheme represents an oRPC security scheme.
 type ORPCSecurityScheme struct {
-	Type             string                 `json:"type"` // apiKey, http, oauth2, openIdConnect
-	Description      string                 `json:"description,omitempty"`
-	Name             string                 `json:"name,omitempty"`             // For apiKey
-	In               string                 `json:"in,omitempty"`               // For apiKey: header, query, cookie
-	Scheme           string                 `json:"scheme,omitempty"`           // For http
-	BearerFormat     string                 `json:"bearerFormat,omitempty"`     // For http bearer
-	OpenIdConnectURL string                 `json:"openIdConnectUrl,omitempty"` // For openIdConnect
-	Flows            map[string]interface{} `json:"flows,omitempty"`            // For oauth2
+	Type             string         `json:"type"` // apiKey, http, oauth2, openIdConnect
+	Description      string         `json:"description,omitempty"`
+	Name             string         `json:"name,omitempty"`             // For apiKey
+	In               string         `json:"in,omitempty"`               // For apiKey: header, query, cookie
+	Scheme           string         `json:"scheme,omitempty"`           // For http
+	BearerFormat     string         `json:"bearerFormat,omitempty"`     // For http bearer
+	OpenIdConnectURL string         `json:"openIdConnectUrl,omitempty"` // For openIdConnect
+	Flows            map[string]any `json:"flows,omitempty"`            // For oauth2
 }
 
-// ORPCProcedure represents an oRPC procedure definition
+// ORPCProcedure represents an oRPC procedure definition.
 type ORPCProcedure struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Input       *ORPCSchema            `json:"input,omitempty"`
-	Output      *ORPCSchema            `json:"output,omitempty"`
-	Errors      []ORPCError            `json:"errors,omitempty"`
-	Streaming   bool                   `json:"streaming,omitempty"`
-	Batch       bool                   `json:"batch,omitempty"`
-	Options     map[string]interface{} `json:"options,omitempty"`
-	Extensions  map[string]interface{} `json:"-"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Input       *ORPCSchema    `json:"input,omitempty"`
+	Output      *ORPCSchema    `json:"output,omitempty"`
+	Errors      []ORPCError    `json:"errors,omitempty"`
+	Streaming   bool           `json:"streaming,omitempty"`
+	Batch       bool           `json:"batch,omitempty"`
+	Options     map[string]any `json:"options,omitempty"`
+	Extensions  map[string]any `json:"-"`
 }
 
-// ORPCSchema represents a schema reference or inline schema
+// ORPCSchema represents a schema reference or inline schema.
 type ORPCSchema struct {
-	Ref    string                 `json:"$ref,omitempty"`
-	Type   string                 `json:"type,omitempty"`
-	Schema map[string]interface{} `json:"schema,omitempty"`
+	Ref    string         `json:"$ref,omitempty"`
+	Type   string         `json:"type,omitempty"`
+	Schema map[string]any `json:"schema,omitempty"`
 }
 
-// ORPCError represents an error definition
+// ORPCError represents an error definition.
 type ORPCError struct {
-	Code        int                    `json:"code"`
-	Message     string                 `json:"message"`
-	Description string                 `json:"description,omitempty"`
-	Schema      map[string]interface{} `json:"schema,omitempty"`
+	Code        int            `json:"code"`
+	Message     string         `json:"message"`
+	Description string         `json:"description,omitempty"`
+	Schema      map[string]any `json:"schema,omitempty"`
 }
 
-// ORPCServiceSchema wraps an oRPC schema with its service context
+// ORPCServiceSchema wraps an oRPC schema with its service context.
 type ORPCServiceSchema struct {
 	Manifest *farp.SchemaManifest
-	Schema   interface{}
+	Schema   any
 	Parsed   *ORPCSpec
 }
 
-// ORPCMerger handles oRPC schema composition
+// ORPCMerger handles oRPC schema composition.
 type ORPCMerger struct {
 	config MergerConfig
 }
 
-// NewORPCMerger creates a new oRPC merger
+// NewORPCMerger creates a new oRPC merger.
 func NewORPCMerger(config MergerConfig) *ORPCMerger {
 	return &ORPCMerger{
 		config: config,
 	}
 }
 
-// ORPCMergeResult contains the merged oRPC spec and metadata
+// ORPCMergeResult contains the merged oRPC spec and metadata.
 type ORPCMergeResult struct {
 	Spec             *ORPCSpec
 	IncludedServices []string
@@ -87,7 +88,7 @@ type ORPCMergeResult struct {
 	Warnings         []string
 }
 
-// MergeORPC merges multiple oRPC schemas from service manifests
+// MergeORPC merges multiple oRPC schemas from service manifests.
 func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, error) {
 	result := &ORPCMergeResult{
 		Spec: &ORPCSpec{
@@ -99,8 +100,8 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 			},
 			Servers:    m.config.Servers,
 			Procedures: make(map[string]ORPCProcedure),
-			Schemas:    make(map[string]interface{}),
-			Extensions: make(map[string]interface{}),
+			Schemas:    make(map[string]any),
+			Extensions: make(map[string]any),
 		},
 		IncludedServices: []string{},
 		ExcludedServices: []string{},
@@ -120,6 +121,7 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 		// Check if this schema should be included
 		if !shouldIncludeORPCInMerge(schema) {
 			result.ExcludedServices = append(result.ExcludedServices, serviceName)
+
 			continue
 		}
 
@@ -131,8 +133,10 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 			if err != nil {
 				result.Warnings = append(result.Warnings,
 					fmt.Sprintf("Failed to parse oRPC schema for %s: %v", serviceName, err))
+
 				continue
 			}
+
 			schema.Parsed = parsed
 		}
 
@@ -166,8 +170,9 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 						procName, existingService, serviceName)
 
 				case farp.ConflictStrategySkip:
-					conflict.Resolution = fmt.Sprintf("Skipped procedure from %s", serviceName)
+					conflict.Resolution = "Skipped procedure from " + serviceName
 					result.Conflicts = append(result.Conflicts, conflict)
+
 					continue
 
 				case farp.ConflictStrategyOverwrite:
@@ -176,7 +181,7 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 
 				case farp.ConflictStrategyPrefix:
 					prefixedName = serviceName + "." + procName
-					conflict.Resolution = fmt.Sprintf("Prefixed to %s", prefixedName)
+					conflict.Resolution = "Prefixed to " + prefixedName
 					result.Conflicts = append(result.Conflicts, conflict)
 				}
 			}
@@ -198,9 +203,10 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 						Type:       ConflictTypeComponent,
 						Item:       schemaName,
 						Services:   []string{existingService, serviceName},
-						Resolution: fmt.Sprintf("Skipped schema from %s", serviceName),
+						Resolution: "Skipped schema from " + serviceName,
 						Strategy:   strategy,
 					})
+
 					continue
 				}
 			}
@@ -225,8 +231,9 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 						name, existingService, serviceName)
 
 				case farp.ConflictStrategySkip:
-					conflict.Resolution = fmt.Sprintf("Skipped security scheme from %s", serviceName)
+					conflict.Resolution = "Skipped security scheme from " + serviceName
 					result.Conflicts = append(result.Conflicts, conflict)
+
 					continue
 
 				case farp.ConflictStrategyOverwrite:
@@ -235,10 +242,11 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 
 				case farp.ConflictStrategyPrefix:
 					prefixedName := serviceName + "_" + name
-					conflict.Resolution = fmt.Sprintf("Prefixed to %s", prefixedName)
+					conflict.Resolution = "Prefixed to " + prefixedName
 					result.Conflicts = append(result.Conflicts, conflict)
 					result.Spec.SecuritySchemes[prefixedName] = secScheme
 					seenSecuritySchemes[prefixedName] = serviceName
+
 					continue
 
 				case farp.ConflictStrategyMerge:
@@ -255,19 +263,19 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 	return result, nil
 }
 
-// ParseORPCSchema parses a raw oRPC schema into structured format
-func ParseORPCSchema(raw interface{}) (*ORPCSpec, error) {
-	schemaMap, ok := raw.(map[string]interface{})
+// ParseORPCSchema parses a raw oRPC schema into structured format.
+func ParseORPCSchema(raw any) (*ORPCSpec, error) {
+	schemaMap, ok := raw.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("schema must be a map")
+		return nil, errors.New("schema must be a map")
 	}
 
 	spec := &ORPCSpec{
 		ORPC:            "1.0.0",
 		Procedures:      make(map[string]ORPCProcedure),
-		Schemas:         make(map[string]interface{}),
+		Schemas:         make(map[string]any),
 		SecuritySchemes: make(map[string]ORPCSecurityScheme),
-		Extensions:      make(map[string]interface{}),
+		Extensions:      make(map[string]any),
 	}
 
 	// Parse oRPC version
@@ -278,52 +286,55 @@ func ParseORPCSchema(raw interface{}) (*ORPCSpec, error) {
 	}
 
 	// Parse info
-	if info, ok := schemaMap["info"].(map[string]interface{}); ok {
+	if info, ok := schemaMap["info"].(map[string]any); ok {
 		spec.Info = parseInfo(info)
 	}
 
 	// Parse servers
-	if servers, ok := schemaMap["servers"].([]interface{}); ok {
+	if servers, ok := schemaMap["servers"].([]any); ok {
 		spec.Servers = parseServers(servers)
 	}
 
 	// Parse procedures
-	if procedures, ok := schemaMap["procedures"].(map[string]interface{}); ok {
+	if procedures, ok := schemaMap["procedures"].(map[string]any); ok {
 		spec.Procedures = parseORPCProcedures(procedures)
 	}
 
 	// Parse schemas
-	if schemas, ok := schemaMap["schemas"].(map[string]interface{}); ok {
+	if schemas, ok := schemaMap["schemas"].(map[string]any); ok {
 		spec.Schemas = schemas
 	}
 
 	// Parse security schemes
-	if securitySchemes, ok := schemaMap["securitySchemes"].(map[string]interface{}); ok {
+	if securitySchemes, ok := schemaMap["securitySchemes"].(map[string]any); ok {
 		spec.SecuritySchemes = parseORPCSecuritySchemes(securitySchemes)
 	}
 
 	// Parse global security
-	if security, ok := schemaMap["security"].([]interface{}); ok {
+	if security, ok := schemaMap["security"].([]any); ok {
 		spec.Security = parseSecurityRequirements(security)
 	}
 
 	return spec, nil
 }
 
-func parseORPCProcedures(procedures map[string]interface{}) map[string]ORPCProcedure {
+func parseORPCProcedures(procedures map[string]any) map[string]ORPCProcedure {
 	result := make(map[string]ORPCProcedure)
+
 	for name, proc := range procedures {
-		if procMap, ok := proc.(map[string]interface{}); ok {
+		if procMap, ok := proc.(map[string]any); ok {
 			procedure := ORPCProcedure{
 				Name:       name,
-				Extensions: make(map[string]interface{}),
+				Extensions: make(map[string]any),
 			}
 			if desc, ok := procMap["description"].(string); ok {
 				procedure.Description = desc
 			}
+
 			if streaming, ok := procMap["streaming"].(bool); ok {
 				procedure.Streaming = streaming
 			}
+
 			if batch, ok := procMap["batch"].(bool); ok {
 				procedure.Batch = batch
 			}
@@ -331,63 +342,80 @@ func parseORPCProcedures(procedures map[string]interface{}) map[string]ORPCProce
 			result[name] = procedure
 		}
 	}
+
 	return result
 }
 
-func parseORPCSecuritySchemes(schemes map[string]interface{}) map[string]ORPCSecurityScheme {
+func parseORPCSecuritySchemes(schemes map[string]any) map[string]ORPCSecurityScheme {
 	result := make(map[string]ORPCSecurityScheme)
+
 	for name, s := range schemes {
-		if schemeMap, ok := s.(map[string]interface{}); ok {
+		if schemeMap, ok := s.(map[string]any); ok {
 			scheme := ORPCSecurityScheme{}
 			if t, ok := schemeMap["type"].(string); ok {
 				scheme.Type = t
 			}
+
 			if desc, ok := schemeMap["description"].(string); ok {
 				scheme.Description = desc
 			}
+
 			if n, ok := schemeMap["name"].(string); ok {
 				scheme.Name = n
 			}
+
 			if in, ok := schemeMap["in"].(string); ok {
 				scheme.In = in
 			}
+
 			if scheme_, ok := schemeMap["scheme"].(string); ok {
 				scheme.Scheme = scheme_
 			}
+
 			if bf, ok := schemeMap["bearerFormat"].(string); ok {
 				scheme.BearerFormat = bf
 			}
+
 			if oidc, ok := schemeMap["openIdConnectUrl"].(string); ok {
 				scheme.OpenIdConnectURL = oidc
 			}
-			if flows, ok := schemeMap["flows"].(map[string]interface{}); ok {
+
+			if flows, ok := schemeMap["flows"].(map[string]any); ok {
 				scheme.Flows = flows
 			}
+
 			result[name] = scheme
 		}
 	}
+
 	return result
 }
 
-func parseSecurityRequirements(security []interface{}) []map[string][]string {
+func parseSecurityRequirements(security []any) []map[string][]string {
 	result := make([]map[string][]string, 0, len(security))
+
 	for _, req := range security {
-		if reqMap, ok := req.(map[string]interface{}); ok {
+		if reqMap, ok := req.(map[string]any); ok {
 			requirement := make(map[string][]string)
+
 			for schemeName, scopes := range reqMap {
-				if scopeList, ok := scopes.([]interface{}); ok {
+				if scopeList, ok := scopes.([]any); ok {
 					scopeStrings := make([]string, 0, len(scopeList))
+
 					for _, scope := range scopeList {
 						if s, ok := scope.(string); ok {
 							scopeStrings = append(scopeStrings, s)
 						}
 					}
+
 					requirement[schemeName] = scopeStrings
 				}
 			}
+
 			result = append(result, requirement)
 		}
 	}
+
 	return result
 }
 
@@ -399,6 +427,7 @@ func shouldIncludeORPCInMerge(schema ORPCServiceSchema) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -411,6 +440,7 @@ func (m *ORPCMerger) getConflictStrategy(config *farp.CompositionConfig) farp.Co
 	if config != nil && config.ConflictStrategy != "" {
 		return config.ConflictStrategy
 	}
+
 	return m.config.DefaultConflictStrategy
 }
 
@@ -418,6 +448,7 @@ func getORPCProcedurePrefix(manifest *farp.SchemaManifest, config *farp.Composit
 	if config != nil && config.ComponentPrefix != "" {
 		return config.ComponentPrefix
 	}
+
 	return manifest.ServiceName
 }
 
@@ -425,15 +456,18 @@ func getORPCSchemaPrefix(manifest *farp.SchemaManifest, config *farp.Composition
 	if config != nil && config.ComponentPrefix != "" {
 		return config.ComponentPrefix
 	}
+
 	return manifest.ServiceName
 }
 
-// SortProcedures sorts procedure names alphabetically
+// SortProcedures sorts procedure names alphabetically.
 func SortProcedures(procedures map[string]ORPCProcedure) []string {
 	keys := make([]string, 0, len(procedures))
 	for k := range procedures {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
+
 	return keys
 }

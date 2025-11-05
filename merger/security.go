@@ -1,31 +1,33 @@
 package merger
 
 import (
+	"errors"
 	"fmt"
 	"sort"
+	"strings"
 )
 
-// SecurityMergeStrategy defines how to handle security/auth during composition
+// SecurityMergeStrategy defines how to handle security/auth during composition.
 type SecurityMergeStrategy string
 
 const (
-	// SecurityStrategyUnion: Combine all security schemes, require ANY to pass
+	// SecurityStrategyUnion: Combine all security schemes, require ANY to pass.
 	SecurityStrategyUnion SecurityMergeStrategy = "union"
 
-	// SecurityStrategyIntersection: Only include common schemes, require ALL to pass
+	// SecurityStrategyIntersection: Only include common schemes, require ALL to pass.
 	SecurityStrategyIntersection SecurityMergeStrategy = "intersection"
 
-	// SecurityStrategyPerService: Keep service-specific security, prefix scheme names
+	// SecurityStrategyPerService: Keep service-specific security, prefix scheme names.
 	SecurityStrategyPerService SecurityMergeStrategy = "per_service"
 
-	// SecurityStrategyGlobal: Use a single global security definition
+	// SecurityStrategyGlobal: Use a single global security definition.
 	SecurityStrategyGlobal SecurityMergeStrategy = "global"
 
-	// SecurityStrategyMostStrict: Use the most restrictive security from any service
+	// SecurityStrategyMostStrict: Use the most restrictive security from any service.
 	SecurityStrategyMostStrict SecurityMergeStrategy = "most_strict"
 )
 
-// SecurityConfig configures security/auth merging behavior
+// SecurityConfig configures security/auth merging behavior.
 type SecurityConfig struct {
 	// Strategy for merging security schemes
 	Strategy SecurityMergeStrategy
@@ -46,7 +48,7 @@ type SecurityConfig struct {
 	RequiredSchemes []string
 }
 
-// DefaultSecurityConfig returns default security configuration
+// DefaultSecurityConfig returns default security configuration.
 func DefaultSecurityConfig() SecurityConfig {
 	return SecurityConfig{
 		Strategy:                  SecurityStrategyUnion,
@@ -57,7 +59,7 @@ func DefaultSecurityConfig() SecurityConfig {
 	}
 }
 
-// SecurityMergeInfo contains information about merged security
+// SecurityMergeInfo contains information about merged security.
 type SecurityMergeInfo struct {
 	// All security schemes found
 	AllSchemes map[string]SecurityScheme
@@ -75,7 +77,7 @@ type SecurityMergeInfo struct {
 	Strategy SecurityMergeStrategy
 }
 
-// SecurityConflict represents a security scheme conflict
+// SecurityConflict represents a security scheme conflict.
 type SecurityConflict struct {
 	SchemeName      string
 	Services        []string
@@ -84,7 +86,7 @@ type SecurityConflict struct {
 	OriginalSchemes map[string]SecurityScheme
 }
 
-// MergeSecuritySchemes merges security schemes based on configuration
+// MergeSecuritySchemes merges security schemes based on configuration.
 func MergeSecuritySchemes(
 	serviceSchemas map[string]map[string]SecurityScheme,
 	config SecurityConfig,
@@ -111,6 +113,7 @@ func MergeSecuritySchemes(
 			if schemeDefinitions[name] == nil {
 				schemeDefinitions[name] = make(map[string]SecurityScheme)
 			}
+
 			schemeDefinitions[name][service] = scheme
 
 			info.SchemesByService[service] = append(info.SchemesByService[service], name)
@@ -131,6 +134,7 @@ func MergeSecuritySchemes(
 				for service := range definitions {
 					conflict.Services = append(conflict.Services, service)
 				}
+
 				info.Conflicts = append(info.Conflicts, conflict)
 			}
 		}
@@ -147,6 +151,7 @@ func MergeSecuritySchemes(
 				// No conflict, add directly
 				for _, scheme := range definitions {
 					mergedSchemes[schemeName] = scheme
+
 					break
 				}
 			} else {
@@ -161,6 +166,7 @@ func MergeSecuritySchemes(
 					// Use first definition (arbitrary choice)
 					for _, scheme := range definitions {
 						mergedSchemes[schemeName] = scheme
+
 						break
 					}
 				}
@@ -181,6 +187,7 @@ func MergeSecuritySchemes(
 				// Use first definition
 				for _, scheme := range definitions {
 					mergedSchemes[schemeName] = scheme
+
 					break
 				}
 			}
@@ -193,6 +200,7 @@ func MergeSecuritySchemes(
 				if contains(config.ExcludeSchemes, name) {
 					continue
 				}
+
 				prefixedName := service + "_" + name
 				mergedSchemes[prefixedName] = scheme
 			}
@@ -204,6 +212,7 @@ func MergeSecuritySchemes(
 			if contains(config.RequiredSchemes, schemeName) {
 				for _, scheme := range schemeDefinitions[schemeName] {
 					mergedSchemes[schemeName] = scheme
+
 					break
 				}
 			}
@@ -222,7 +231,7 @@ func MergeSecuritySchemes(
 	return info, mergedSchemes, nil
 }
 
-// MergeOperationSecurity merges operation-level security requirements
+// MergeOperationSecurity merges operation-level security requirements.
 func MergeOperationSecurity(
 	existingSecurity []map[string][]string,
 	newSecurity []map[string][]string,
@@ -233,6 +242,7 @@ func MergeOperationSecurity(
 		// Combine both (either can satisfy)
 		result := append([]map[string][]string{}, existingSecurity...)
 		result = append(result, newSecurity...)
+
 		return result
 
 	case SecurityStrategyIntersection:
@@ -240,21 +250,25 @@ func MergeOperationSecurity(
 		if len(existingSecurity) == 0 {
 			return newSecurity
 		}
+
 		if len(newSecurity) == 0 {
 			return existingSecurity
 		}
 		// Combine into single requirement
 		combined := make(map[string][]string)
+
 		for _, req := range existingSecurity {
 			for scheme, scopes := range req {
 				combined[scheme] = append(combined[scheme], scopes...)
 			}
 		}
+
 		for _, req := range newSecurity {
 			for scheme, scopes := range req {
 				combined[scheme] = append(combined[scheme], scopes...)
 			}
 		}
+
 		return []map[string][]string{combined}
 
 	case SecurityStrategyMostStrict:
@@ -262,6 +276,7 @@ func MergeOperationSecurity(
 		if len(newSecurity) > len(existingSecurity) {
 			return newSecurity
 		}
+
 		return existingSecurity
 
 	default:
@@ -278,12 +293,14 @@ func areSecuritySchemesIdentical(schemes map[string]SecurityScheme) bool {
 	}
 
 	var first SecurityScheme
+
 	firstSet := false
 
 	for _, scheme := range schemes {
 		if !firstSet {
 			first = scheme
 			firstSet = true
+
 			continue
 		}
 
@@ -310,6 +327,7 @@ func findMostStrictScheme(schemes map[string]SecurityScheme) SecurityScheme {
 	}
 
 	var mostStrict SecurityScheme
+
 	maxStrictness := -1
 
 	for _, scheme := range schemes {
@@ -328,10 +346,11 @@ func contains(slice []string, item string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
-// GetSecuritySchemeSummary returns a summary of security schemes
+// GetSecuritySchemeSummary returns a summary of security schemes.
 func GetSecuritySchemeSummary(schemes map[string]SecurityScheme) string {
 	if len(schemes) == 0 {
 		return "No security schemes defined"
@@ -343,18 +362,21 @@ func GetSecuritySchemeSummary(schemes map[string]SecurityScheme) string {
 	}
 
 	summary := fmt.Sprintf("Security schemes (%d):\n", len(schemes))
+	var summarySb346 strings.Builder
+
 	for schemeType, names := range byType {
 		sort.Strings(names)
-		summary += fmt.Sprintf("  %s: %v\n", schemeType, names)
+		summarySb346.WriteString(fmt.Sprintf("  %s: %v\n", schemeType, names))
 	}
+	summary += summarySb346.String()
 
 	return summary
 }
 
-// ValidateSecurityScheme validates a security scheme definition
+// ValidateSecurityScheme validates a security scheme definition.
 func ValidateSecurityScheme(name string, scheme SecurityScheme) error {
 	if name == "" {
-		return fmt.Errorf("security scheme name cannot be empty")
+		return errors.New("security scheme name cannot be empty")
 	}
 
 	switch scheme.Type {
@@ -362,9 +384,11 @@ func ValidateSecurityScheme(name string, scheme SecurityScheme) error {
 		if scheme.Name == "" {
 			return fmt.Errorf("apiKey scheme %s missing 'name' field", name)
 		}
+
 		if scheme.In == "" {
 			return fmt.Errorf("apiKey scheme %s missing 'in' field", name)
 		}
+
 		if scheme.In != "query" && scheme.In != "header" && scheme.In != "cookie" {
 			return fmt.Errorf("apiKey scheme %s has invalid 'in' value: %s", name, scheme.In)
 		}

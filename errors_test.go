@@ -28,7 +28,7 @@ func TestManifestError_Unwrap(t *testing.T) {
 	}
 
 	unwrapped := manifestErr.Unwrap()
-	if unwrapped != baseErr {
+	if !errors.Is(unwrapped, baseErr) {
 		t.Errorf("ManifestError.Unwrap() = %v, want %v", unwrapped, baseErr)
 	}
 
@@ -60,7 +60,7 @@ func TestSchemaError_Unwrap(t *testing.T) {
 	}
 
 	unwrapped := schemaErr.Unwrap()
-	if unwrapped != baseErr {
+	if !errors.Is(unwrapped, baseErr) {
 		t.Errorf("SchemaError.Unwrap() = %v, want %v", unwrapped, baseErr)
 	}
 
@@ -104,6 +104,7 @@ func TestErrorConstants(t *testing.T) {
 		if err == nil {
 			t.Errorf("error constant at index %d is nil", i)
 		}
+
 		if err.Error() == "" {
 			t.Errorf("error constant at index %d has empty message", i)
 		}

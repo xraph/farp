@@ -7,16 +7,16 @@ import (
 	"github.com/xraph/farp"
 )
 
-// Mock application for testing (separate from forge integration mock)
+// Mock application for testing (separate from forge integration mock).
 type testApp struct {
 	name    string
 	version string
-	routes  interface{}
+	routes  any
 }
 
-func (m *testApp) Name() string        { return m.name }
-func (m *testApp) Version() string     { return m.version }
-func (m *testApp) Routes() interface{} { return m.routes }
+func (m *testApp) Name() string    { return m.name }
+func (m *testApp) Version() string { return m.version }
+func (m *testApp) Routes() any     { return m.routes }
 
 func TestNewProvider(t *testing.T) {
 	// Test with defaults
@@ -24,6 +24,7 @@ func TestNewProvider(t *testing.T) {
 	if p.specVersion != "3.0.0" {
 		t.Errorf("expected default spec version '3.0.0', got '%s'", p.specVersion)
 	}
+
 	if p.endpoint != "/asyncapi.json" {
 		t.Errorf("expected default endpoint '/asyncapi.json', got '%s'", p.endpoint)
 	}
@@ -33,6 +34,7 @@ func TestNewProvider(t *testing.T) {
 	if p.specVersion != "2.6.0" {
 		t.Errorf("expected spec version '2.6.0', got '%s'", p.specVersion)
 	}
+
 	if p.endpoint != "/custom/asyncapi.json" {
 		t.Errorf("expected endpoint '/custom/asyncapi.json', got '%s'", p.endpoint)
 	}
@@ -82,7 +84,7 @@ func TestProvider_Generate(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	schemaMap, ok := schema.(map[string]interface{})
+	schemaMap, ok := schema.(map[string]any)
 	if !ok {
 		t.Fatal("schema should be map[string]interface{}")
 	}
@@ -91,7 +93,7 @@ func TestProvider_Generate(t *testing.T) {
 		t.Errorf("expected asyncapi version '3.0.0', got %v", schemaMap["asyncapi"])
 	}
 
-	info, ok := schemaMap["info"].(map[string]interface{})
+	info, ok := schemaMap["info"].(map[string]any)
 	if !ok {
 		t.Fatal("info should be map[string]interface{}")
 	}
@@ -121,29 +123,29 @@ func TestProvider_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
 		specVersion string
-		schema      interface{}
+		schema      any
 		wantErr     bool
 	}{
 		{
 			name:        "valid AsyncAPI 3.0 schema",
 			specVersion: "3.0.0",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"asyncapi": "3.0.0",
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
-				"channels":   map[string]interface{}{},
-				"operations": map[string]interface{}{},
+				"channels":   map[string]any{},
+				"operations": map[string]any{},
 			},
 			wantErr: false,
 		},
 		{
 			name:        "valid AsyncAPI 2.6 schema",
 			specVersion: "2.6.0",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"asyncapi": "2.6.0",
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
@@ -159,49 +161,49 @@ func TestProvider_Validate(t *testing.T) {
 		{
 			name:        "missing asyncapi field",
 			specVersion: "3.0.0",
-			schema: map[string]interface{}{
-				"info": map[string]interface{}{
+			schema: map[string]any{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
-				"channels":   map[string]interface{}{},
-				"operations": map[string]interface{}{},
+				"channels":   map[string]any{},
+				"operations": map[string]any{},
 			},
 			wantErr: true,
 		},
 		{
 			name:        "missing info field",
 			specVersion: "3.0.0",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"asyncapi":   "3.0.0",
-				"channels":   map[string]interface{}{},
-				"operations": map[string]interface{}{},
+				"channels":   map[string]any{},
+				"operations": map[string]any{},
 			},
 			wantErr: true,
 		},
 		{
 			name:        "AsyncAPI 3.0 missing channels",
 			specVersion: "3.0.0",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"asyncapi": "3.0.0",
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
-				"operations": map[string]interface{}{},
+				"operations": map[string]any{},
 			},
 			wantErr: true,
 		},
 		{
 			name:        "AsyncAPI 3.0 missing operations",
 			specVersion: "3.0.0",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"asyncapi": "3.0.0",
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
-				"channels": map[string]interface{}{},
+				"channels": map[string]any{},
 			},
 			wantErr: true,
 		},
@@ -210,6 +212,7 @@ func TestProvider_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := NewProvider(tt.specVersion, "")
+
 			err := p.Validate(tt.schema)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -221,14 +224,14 @@ func TestProvider_Validate(t *testing.T) {
 func TestProvider_HashAndSerialize(t *testing.T) {
 	p := NewProvider("", "")
 
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"asyncapi": "3.0.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   "Test API",
 			"version": "1.0.0",
 		},
-		"channels":   map[string]interface{}{},
-		"operations": map[string]interface{}{},
+		"channels":   map[string]any{},
+		"operations": map[string]any{},
 	}
 
 	// Test Hash
@@ -319,6 +322,7 @@ func TestProvider_GenerateDescriptor(t *testing.T) {
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateDescriptor() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 

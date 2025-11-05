@@ -7,16 +7,16 @@ import (
 	"github.com/xraph/farp"
 )
 
-// Mock application for testing (separate from forge integration mock)
+// Mock application for testing (separate from forge integration mock).
 type testApp struct {
 	name    string
 	version string
-	routes  interface{}
+	routes  any
 }
 
-func (m *testApp) Name() string        { return m.name }
-func (m *testApp) Version() string     { return m.version }
-func (m *testApp) Routes() interface{} { return m.routes }
+func (m *testApp) Name() string    { return m.name }
+func (m *testApp) Version() string { return m.version }
+func (m *testApp) Routes() any     { return m.routes }
 
 func TestNewProvider(t *testing.T) {
 	// Test with defaults
@@ -24,6 +24,7 @@ func TestNewProvider(t *testing.T) {
 	if p.specVersion != "3.1.0" {
 		t.Errorf("expected default spec version '3.1.0', got '%s'", p.specVersion)
 	}
+
 	if p.endpoint != "/openapi.json" {
 		t.Errorf("expected default endpoint '/openapi.json', got '%s'", p.endpoint)
 	}
@@ -33,6 +34,7 @@ func TestNewProvider(t *testing.T) {
 	if p.specVersion != "3.0.0" {
 		t.Errorf("expected spec version '3.0.0', got '%s'", p.specVersion)
 	}
+
 	if p.endpoint != "/custom/openapi.json" {
 		t.Errorf("expected endpoint '/custom/openapi.json', got '%s'", p.endpoint)
 	}
@@ -82,7 +84,7 @@ func TestProvider_Generate(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	schemaMap, ok := schema.(map[string]interface{})
+	schemaMap, ok := schema.(map[string]any)
 	if !ok {
 		t.Fatal("schema should be map[string]interface{}")
 	}
@@ -91,7 +93,7 @@ func TestProvider_Generate(t *testing.T) {
 		t.Errorf("expected openapi version '3.1.0', got %v", schemaMap["openapi"])
 	}
 
-	info, ok := schemaMap["info"].(map[string]interface{})
+	info, ok := schemaMap["info"].(map[string]any)
 	if !ok {
 		t.Fatal("info should be map[string]interface{}")
 	}
@@ -122,18 +124,18 @@ func TestProvider_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		schema  interface{}
+		schema  any
 		wantErr bool
 	}{
 		{
 			name: "valid schema",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"openapi": "3.1.0",
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
-				"paths": map[string]interface{}{},
+				"paths": map[string]any{},
 			},
 			wantErr: false,
 		},
@@ -144,28 +146,28 @@ func TestProvider_Validate(t *testing.T) {
 		},
 		{
 			name: "missing openapi field",
-			schema: map[string]interface{}{
-				"info": map[string]interface{}{
+			schema: map[string]any{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
-				"paths": map[string]interface{}{},
+				"paths": map[string]any{},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing info field",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"openapi": "3.1.0",
-				"paths":   map[string]interface{}{},
+				"paths":   map[string]any{},
 			},
 			wantErr: true,
 		},
 		{
 			name: "missing paths field",
-			schema: map[string]interface{}{
+			schema: map[string]any{
 				"openapi": "3.1.0",
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"title":   "Test API",
 					"version": "1.0.0",
 				},
@@ -187,13 +189,13 @@ func TestProvider_Validate(t *testing.T) {
 func TestProvider_HashAndSerialize(t *testing.T) {
 	p := NewProvider("", "")
 
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"openapi": "3.1.0",
-		"info": map[string]interface{}{
+		"info": map[string]any{
 			"title":   "Test API",
 			"version": "1.0.0",
 		},
-		"paths": map[string]interface{}{},
+		"paths": map[string]any{},
 	}
 
 	// Test Hash
@@ -284,6 +286,7 @@ func TestProvider_GenerateDescriptor(t *testing.T) {
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateDescriptor() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 

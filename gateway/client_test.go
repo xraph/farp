@@ -11,11 +11,11 @@ import (
 	"github.com/xraph/farp"
 )
 
-// Mock registry for testing
+// Mock registry for testing.
 type mockRegistry struct {
 	mu                 sync.RWMutex
 	manifests          map[string]*farp.SchemaManifest
-	schemas            map[string]interface{}
+	schemas            map[string]any
 	watchHandler       farp.ManifestChangeHandler
 	schemaWatchHandler farp.SchemaChangeHandler
 }
@@ -23,12 +23,13 @@ type mockRegistry struct {
 func newMockRegistry() *mockRegistry {
 	return &mockRegistry{
 		manifests: make(map[string]*farp.SchemaManifest),
-		schemas:   make(map[string]interface{}),
+		schemas:   make(map[string]any),
 	}
 }
 
 func (m *mockRegistry) RegisterManifest(ctx context.Context, manifest *farp.SchemaManifest) error {
 	m.manifests[manifest.InstanceID] = manifest
+
 	return nil
 }
 
@@ -37,44 +38,52 @@ func (m *mockRegistry) GetManifest(ctx context.Context, instanceID string) (*far
 	if !ok {
 		return nil, farp.ErrManifestNotFound
 	}
+
 	return manifest, nil
 }
 
 func (m *mockRegistry) UpdateManifest(ctx context.Context, manifest *farp.SchemaManifest) error {
 	m.manifests[manifest.InstanceID] = manifest
+
 	return nil
 }
 
 func (m *mockRegistry) DeleteManifest(ctx context.Context, instanceID string) error {
 	delete(m.manifests, instanceID)
+
 	return nil
 }
 
 func (m *mockRegistry) ListManifests(ctx context.Context, serviceName string) ([]*farp.SchemaManifest, error) {
 	var result []*farp.SchemaManifest
+
 	for _, manifest := range m.manifests {
 		if serviceName == "" || manifest.ServiceName == serviceName {
 			result = append(result, manifest)
 		}
 	}
+
 	return result, nil
 }
 
-func (m *mockRegistry) PublishSchema(ctx context.Context, path string, schema interface{}) error {
+func (m *mockRegistry) PublishSchema(ctx context.Context, path string, schema any) error {
 	m.schemas[path] = schema
+
 	return nil
 }
 
-func (m *mockRegistry) FetchSchema(ctx context.Context, path string) (interface{}, error) {
+func (m *mockRegistry) FetchSchema(ctx context.Context, path string) (any, error) {
 	schema, ok := m.schemas[path]
 	if !ok {
 		return nil, farp.ErrSchemaNotFound
 	}
+
 	return schema, nil
 }
 
 func (m *mockRegistry) DeleteSchema(ctx context.Context, path string) error {
 	delete(m.schemas, path)
+
 	return nil
 }
 
@@ -83,6 +92,7 @@ func (m *mockRegistry) WatchManifests(ctx context.Context, serviceName string, o
 	m.watchHandler = onChange
 	m.mu.Unlock()
 	<-ctx.Done()
+
 	return nil
 }
 
@@ -91,6 +101,7 @@ func (m *mockRegistry) WatchSchemas(ctx context.Context, path string, onChange f
 	m.schemaWatchHandler = onChange
 	m.mu.Unlock()
 	<-ctx.Done()
+
 	return nil
 }
 
@@ -102,7 +113,7 @@ func (m *mockRegistry) Health(ctx context.Context) error {
 	return nil
 }
 
-// Trigger a manifest change event
+// Trigger a manifest change event.
 func (m *mockRegistry) triggerManifestEvent(eventType farp.EventType, manifest *farp.SchemaManifest) {
 	m.mu.RLock()
 	handler := m.watchHandler
@@ -154,11 +165,11 @@ func TestClient_WatchServices(t *testing.T) {
 		ContentType: "application/json",
 		Hash:        "abc123",
 		Size:        1024,
-		InlineSchema: map[string]interface{}{
+		InlineSchema: map[string]any{
 			"openapi": "3.1.0",
-			"paths": map[string]interface{}{
-				"/test": map[string]interface{}{
-					"get": map[string]interface{}{},
+			"paths": map[string]any{
+				"/test": map[string]any{
+					"get": map[string]any{},
 				},
 			},
 		},
@@ -167,6 +178,7 @@ func TestClient_WatchServices(t *testing.T) {
 
 	// Watch for changes
 	var changeCallCount int32
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -215,15 +227,15 @@ func TestClient_ConvertToRoutes_OpenAPI(t *testing.T) {
 		ContentType: "application/json",
 		Hash:        "abc123",
 		Size:        1024,
-		InlineSchema: map[string]interface{}{
+		InlineSchema: map[string]any{
 			"openapi": "3.1.0",
-			"paths": map[string]interface{}{
-				"/users": map[string]interface{}{
-					"get":  map[string]interface{}{},
-					"post": map[string]interface{}{},
+			"paths": map[string]any{
+				"/users": map[string]any{
+					"get":  map[string]any{},
+					"post": map[string]any{},
 				},
-				"/posts": map[string]interface{}{
-					"get": map[string]interface{}{},
+				"/posts": map[string]any{
+					"get": map[string]any{},
 				},
 			},
 		},
@@ -241,9 +253,11 @@ func TestClient_ConvertToRoutes_OpenAPI(t *testing.T) {
 		if route.ServiceName != "test-service" {
 			t.Errorf("route.ServiceName = %v, want test-service", route.ServiceName)
 		}
+
 		if route.ServiceVersion != "v1.0.0" {
 			t.Errorf("route.ServiceVersion = %v, want v1.0.0", route.ServiceVersion)
 		}
+
 		if len(route.Methods) == 0 {
 			t.Error("route should have methods")
 		}
@@ -265,11 +279,11 @@ func TestClient_ConvertToRoutes_AsyncAPI(t *testing.T) {
 		ContentType: "application/json",
 		Hash:        "abc123",
 		Size:        1024,
-		InlineSchema: map[string]interface{}{
+		InlineSchema: map[string]any{
 			"asyncapi": "3.0.0",
-			"channels": map[string]interface{}{
-				"/ws/notifications": map[string]interface{}{},
-				"/ws/messages":      map[string]interface{}{},
+			"channels": map[string]any{
+				"/ws/notifications": map[string]any{},
+				"/ws/messages":      map[string]any{},
 			},
 		},
 	})
@@ -305,7 +319,7 @@ func TestClient_ConvertToRoutes_GraphQL(t *testing.T) {
 		ContentType: "application/graphql",
 		Hash:        "abc123",
 		Size:        1024,
-		InlineSchema: map[string]interface{}{
+		InlineSchema: map[string]any{
 			"schema": "type Query { hello: String }",
 		},
 	})
@@ -324,10 +338,12 @@ func TestClient_ConvertToRoutes_GraphQL(t *testing.T) {
 
 	hasPost := false
 	hasGet := false
+
 	for _, method := range route.Methods {
 		if method == "POST" {
 			hasPost = true
 		}
+
 		if method == "GET" {
 			hasGet = true
 		}
@@ -344,11 +360,11 @@ func TestClient_ConvertToRoutes_RegistryLocation(t *testing.T) {
 
 	// Store schema in registry
 	schemaPath := "/schemas/test/v1/openapi"
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"openapi": "3.1.0",
-		"paths": map[string]interface{}{
-			"/api": map[string]interface{}{
-				"get": map[string]interface{}{},
+		"paths": map[string]any{
+			"/api": map[string]any{
+				"get": map[string]any{},
 			},
 		},
 	}
@@ -381,7 +397,7 @@ func TestClient_ClearCache(t *testing.T) {
 	client := NewClient(registry)
 
 	// Add something to cache
-	client.cacheSchema("hash123", map[string]interface{}{"test": "data"})
+	client.cacheSchema("hash123", map[string]any{"test": "data"})
 
 	if len(client.schemaCache) == 0 {
 		t.Error("cache should not be empty after adding")
@@ -427,7 +443,7 @@ func TestClient_SchemaCache(t *testing.T) {
 	client := NewClient(registry)
 
 	hash := "test-hash-123"
-	schema := map[string]interface{}{"test": "data"}
+	schema := map[string]any{"test": "data"}
 
 	// Should not be in cache initially
 	_, ok := client.getSchemaFromCache(hash)
@@ -444,7 +460,7 @@ func TestClient_SchemaCache(t *testing.T) {
 		t.Error("schema should be in cache after caching")
 	}
 
-	cachedMap, ok := cached.(map[string]interface{})
+	cachedMap, ok := cached.(map[string]any)
 	if !ok {
 		t.Fatal("cached schema is not map[string]interface{}")
 	}
@@ -554,7 +570,7 @@ func TestClient_ConvertToRoutes_UnknownSchemaType(t *testing.T) {
 		ContentType:  "application/json",
 		Hash:         "abc123",
 		Size:         1024,
-		InlineSchema: map[string]interface{}{"test": "data"},
+		InlineSchema: map[string]any{"test": "data"},
 	})
 
 	manifests := []*farp.SchemaManifest{manifest}
@@ -582,7 +598,7 @@ func TestClient_ConvertToRoutes_OpenAPI_NoPaths(t *testing.T) {
 		ContentType: "application/json",
 		Hash:        "abc123",
 		Size:        1024,
-		InlineSchema: map[string]interface{}{
+		InlineSchema: map[string]any{
 			"openapi": "3.1.0",
 			// No paths
 		},
@@ -613,7 +629,7 @@ func TestClient_ConvertToRoutes_AsyncAPI_NoChannels(t *testing.T) {
 		ContentType: "application/json",
 		Hash:        "abc123",
 		Size:        1024,
-		InlineSchema: map[string]interface{}{
+		InlineSchema: map[string]any{
 			"asyncapi": "3.0.0",
 			// No channels
 		},
@@ -645,7 +661,7 @@ func TestClient_ConvertToRoutes_GraphQL_DefaultPath(t *testing.T) {
 		ContentType: "application/graphql",
 		Hash:        "abc123",
 		Size:        1024,
-		InlineSchema: map[string]interface{}{
+		InlineSchema: map[string]any{
 			"schema": "type Query { hello: String }",
 		},
 	})
@@ -668,11 +684,11 @@ func TestClient_ConvertToRoutes_CacheHit(t *testing.T) {
 	client := NewClient(registry)
 
 	hash := "abc123"
-	schema := map[string]interface{}{
+	schema := map[string]any{
 		"openapi": "3.1.0",
-		"paths": map[string]interface{}{
-			"/test": map[string]interface{}{
-				"get": map[string]interface{}{},
+		"paths": map[string]any{
+			"/test": map[string]any{
+				"get": map[string]any{},
 			},
 		},
 	}
@@ -710,13 +726,12 @@ func TestClient_WatchServices_ListError(t *testing.T) {
 	errorClient := NewClient(errorRegistry)
 
 	err := errorClient.WatchServices(context.Background(), "test-service", func(routes []ServiceRoute) {})
-
 	if err == nil {
 		t.Error("expected error from WatchServices when ListManifests fails")
 	}
 }
 
-// errorMockRegistry for testing error paths
+// errorMockRegistry for testing error paths.
 type errorMockRegistry struct {
 	error error
 }
@@ -741,11 +756,11 @@ func (m *errorMockRegistry) ListManifests(ctx context.Context, serviceName strin
 	return nil, m.error
 }
 
-func (m *errorMockRegistry) PublishSchema(ctx context.Context, path string, schema interface{}) error {
+func (m *errorMockRegistry) PublishSchema(ctx context.Context, path string, schema any) error {
 	return m.error
 }
 
-func (m *errorMockRegistry) FetchSchema(ctx context.Context, path string) (interface{}, error) {
+func (m *errorMockRegistry) FetchSchema(ctx context.Context, path string) (any, error) {
 	return nil, m.error
 }
 
