@@ -9,23 +9,23 @@ import (
 
 // GRPCSpec represents a simplified gRPC service definition (protobuf-based)
 type GRPCSpec struct {
-	Syntax          string                      `json:"syntax"` // proto3
-	Package         string                      `json:"package"`
-	Services        map[string]GRPCService      `json:"services"`
-	Messages        map[string]GRPCMessage      `json:"messages"`
-	Enums           map[string]GRPCEnum         `json:"enums,omitempty"`
+	Syntax          string                        `json:"syntax"` // proto3
+	Package         string                        `json:"package"`
+	Services        map[string]GRPCService        `json:"services"`
+	Messages        map[string]GRPCMessage        `json:"messages"`
+	Enums           map[string]GRPCEnum           `json:"enums,omitempty"`
 	SecuritySchemes map[string]GRPCSecurityScheme `json:"securitySchemes,omitempty"`
-	Imports         []string                    `json:"imports,omitempty"`
+	Imports         []string                      `json:"imports,omitempty"`
 }
 
 // GRPCSecurityScheme represents gRPC authentication configuration
 type GRPCSecurityScheme struct {
-	Type        string                 `json:"type"` // tls, oauth2, apiKey, custom
-	Description string                 `json:"description,omitempty"`
+	Type        string `json:"type"` // tls, oauth2, apiKey, custom
+	Description string `json:"description,omitempty"`
 	// TLS settings
 	TLS *GRPCTLSConfig `json:"tls,omitempty"`
 	// OAuth2 settings
-	TokenURL string `json:"tokenUrl,omitempty"`
+	TokenURL string            `json:"tokenUrl,omitempty"`
 	Scopes   map[string]string `json:"scopes,omitempty"`
 	// API Key settings
 	KeyName string `json:"keyName,omitempty"`
@@ -50,21 +50,21 @@ type GRPCService struct {
 
 // GRPCMethod represents a gRPC method (RPC)
 type GRPCMethod struct {
-	Name              string                 `json:"name"`
-	Description       string                 `json:"description,omitempty"`
-	InputType         string                 `json:"input_type"`
-	OutputType        string                 `json:"output_type"`
-	ClientStreaming   bool                   `json:"client_streaming"`
-	ServerStreaming   bool                   `json:"server_streaming"`
-	Options           map[string]interface{} `json:"options,omitempty"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description,omitempty"`
+	InputType       string                 `json:"input_type"`
+	OutputType      string                 `json:"output_type"`
+	ClientStreaming bool                   `json:"client_streaming"`
+	ServerStreaming bool                   `json:"server_streaming"`
+	Options         map[string]interface{} `json:"options,omitempty"`
 }
 
 // GRPCMessage represents a protobuf message
 type GRPCMessage struct {
-	Name        string                    `json:"name"`
-	Description string                    `json:"description,omitempty"`
-	Fields      map[string]GRPCField      `json:"fields"`
-	Options     map[string]interface{}    `json:"options,omitempty"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	Fields      map[string]GRPCField   `json:"fields"`
+	Options     map[string]interface{} `json:"options,omitempty"`
 }
 
 // GRPCField represents a message field
@@ -78,9 +78,9 @@ type GRPCField struct {
 
 // GRPCEnum represents a protobuf enum
 type GRPCEnum struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
-	Values      map[string]int    `json:"values"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Values      map[string]int `json:"values"`
 }
 
 // GRPCServiceSchema wraps a gRPC schema with its service context
@@ -129,10 +129,10 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 	}
 
 	// Track what we've seen for conflict detection
-	seenServices := make(map[string]string)         // service -> source service
-	seenMessages := make(map[string]string)         // message -> source service
-	seenEnums := make(map[string]string)            // enum -> source service
-	seenSecuritySchemes := make(map[string]string)  // security scheme -> source service
+	seenServices := make(map[string]string)        // service -> source service
+	seenMessages := make(map[string]string)        // message -> source service
+	seenEnums := make(map[string]string)           // enum -> source service
+	seenSecuritySchemes := make(map[string]string) // security scheme -> source service
 
 	// Process each schema
 	for _, schema := range schemas {
@@ -245,10 +245,10 @@ func (m *GRPCMerger) MergeGRPC(schemas []GRPCServiceSchema) (*GRPCMergeResult, e
 		for name, secScheme := range schema.Parsed.SecuritySchemes {
 			if existingService, exists := seenSecuritySchemes[name]; exists {
 				conflict := Conflict{
-					Type:       ConflictTypeSecurityScheme,
-					Item:       name,
-					Services:   []string{existingService, serviceName},
-					Strategy:   strategy,
+					Type:     ConflictTypeSecurityScheme,
+					Item:     name,
+					Services: []string{existingService, serviceName},
+					Strategy: strategy,
 				}
 
 				switch strategy {
@@ -507,4 +507,3 @@ func SortGRPCServices(services map[string]GRPCService) []string {
 	sort.Strings(keys)
 	return keys
 }
-

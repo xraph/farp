@@ -12,8 +12,8 @@ type mockApplication struct {
 	routes  interface{}
 }
 
-func (m *mockApplication) Name() string    { return m.name }
-func (m *mockApplication) Version() string { return m.version }
+func (m *mockApplication) Name() string        { return m.name }
+func (m *mockApplication) Version() string     { return m.version }
 func (m *mockApplication) Routes() interface{} { return m.routes }
 
 // Mock schema provider for testing
@@ -289,4 +289,3 @@ func TestGlobalProviderRegistry(t *testing.T) {
 		t.Error("ListProviders() should include newly registered provider")
 	}
 }
-

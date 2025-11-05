@@ -89,7 +89,6 @@ func MergeSecuritySchemes(
 	serviceSchemas map[string]map[string]SecurityScheme,
 	config SecurityConfig,
 ) (*SecurityMergeInfo, map[string]SecurityScheme, error) {
-
 	info := &SecurityMergeInfo{
 		AllSchemes:       make(map[string]SecurityScheme),
 		SchemesByService: make(map[string][]string),
@@ -229,7 +228,6 @@ func MergeOperationSecurity(
 	newSecurity []map[string][]string,
 	strategy SecurityMergeStrategy,
 ) []map[string][]string {
-
 	switch strategy {
 	case SecurityStrategyUnion:
 		// Combine both (either can satisfy)
@@ -393,4 +391,3 @@ func ValidateSecurityScheme(name string, scheme SecurityScheme) error {
 
 	return nil
 }
-

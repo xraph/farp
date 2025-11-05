@@ -121,8 +121,8 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 				Description: m.config.MergedDescription,
 				Version:     m.config.MergedVersion,
 			},
-			Servers:    m.config.Servers,
-			Paths:      make(map[string]PathItem),
+			Servers: m.config.Servers,
+			Paths:   make(map[string]PathItem),
 			Components: &Components{
 				Schemas:         make(map[string]map[string]interface{}),
 				Responses:       make(map[string]Response),
@@ -140,10 +140,10 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 	}
 
 	// Track what we've seen for conflict detection
-	seenPaths := make(map[string]string)          // path -> service
-	seenComponents := make(map[string]string)     // component -> service
-	seenOperationIDs := make(map[string]string)   // operationID -> service
-	seenTags := make(map[string]Tag)              // tag name -> tag
+	seenPaths := make(map[string]string)           // path -> service
+	seenComponents := make(map[string]string)      // component -> service
+	seenOperationIDs := make(map[string]string)    // operationID -> service
+	seenTags := make(map[string]Tag)               // tag name -> tag
 	seenSecuritySchemes := make(map[string]string) // security scheme -> service
 
 	// Process each schema
@@ -270,10 +270,10 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 			for name, scheme := range prefixedComponents.SecuritySchemes {
 				if existingService, exists := seenSecuritySchemes[name]; exists {
 					conflict := Conflict{
-						Type:       ConflictTypeSecurityScheme,
-						Item:       name,
-						Services:   []string{existingService, serviceName},
-						Strategy:   strategy,
+						Type:     ConflictTypeSecurityScheme,
+						Item:     name,
+						Services: []string{existingService, serviceName},
+						Strategy: strategy,
 					}
 
 					switch strategy {
@@ -401,8 +401,8 @@ func getOperationIDPrefix(manifest *farp.SchemaManifest, config *farp.Compositio
 }
 
 func applyOperationPrefixes(item PathItem, opIDPrefix, tagPrefix, serviceName string,
-	seenOperationIDs map[string]string, result *MergeResult) PathItem {
-
+	seenOperationIDs map[string]string, result *MergeResult,
+) PathItem {
 	applyToOp := func(op *Operation) {
 		if op == nil {
 			return
@@ -474,4 +474,3 @@ func mergePathItems(existing, new PathItem) PathItem {
 
 	return existing
 }
-

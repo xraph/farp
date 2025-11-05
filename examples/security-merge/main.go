@@ -258,4 +258,3 @@ func createOpenAPIWithAuth(title string, securityDefs []SecurityDef) map[string]
 		"security": globalSecurity, // Global security requirement
 	}
 }
-

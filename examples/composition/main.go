@@ -329,7 +329,7 @@ func createOrderServiceOpenAPI() map[string]interface{} {
 				},
 			},
 			"/orders/{id}": map[string]interface{}{
-					"get": map[string]interface{}{
+				"get": map[string]interface{}{
 					"operationId": "getOrder",
 					"summary":     "Get order by ID",
 					"tags":        []interface{}{"orders"},

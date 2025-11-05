@@ -6,7 +6,7 @@ import "context"
 // Implementations store data in various backends (Consul, etcd, Kubernetes, Redis, etc.)
 type SchemaRegistry interface {
 	// Manifest operations
-	
+
 	// RegisterManifest registers a new schema manifest
 	RegisterManifest(ctx context.Context, manifest *SchemaManifest) error
 
@@ -24,7 +24,7 @@ type SchemaRegistry interface {
 	ListManifests(ctx context.Context, serviceName string) ([]*SchemaManifest, error)
 
 	// Schema operations
-	
+
 	// PublishSchema stores a schema in the registry
 	// path is the registry path (e.g., "/schemas/user-service/v1/openapi")
 	// schema is the schema content (typically map[string]interface{} or struct)
@@ -38,7 +38,7 @@ type SchemaRegistry interface {
 	DeleteSchema(ctx context.Context, path string) error
 
 	// Watch operations
-	
+
 	// WatchManifests watches for manifest changes for a service
 	// onChange is called when a manifest is added, updated, or removed
 	// Returns an error if watch setup fails
@@ -50,7 +50,7 @@ type SchemaRegistry interface {
 	WatchSchemas(ctx context.Context, path string, onChange SchemaChangeHandler) error
 
 	// Lifecycle
-	
+
 	// Close closes the registry and cleans up resources
 	Close() error
 
@@ -137,9 +137,9 @@ func DefaultRegistryConfig() RegistryConfig {
 		Backend:              "memory",
 		Namespace:            "farp",
 		BackendConfig:        make(map[string]interface{}),
-		MaxSchemaSize:        1024 * 1024,      // 1MB
-		CompressionThreshold: 100 * 1024,       // 100KB
-		TTL:                  0,                 // No expiry
+		MaxSchemaSize:        1024 * 1024, // 1MB
+		CompressionThreshold: 100 * 1024,  // 100KB
+		TTL:                  0,           // No expiry
 	}
 }
 
@@ -187,4 +187,3 @@ type PublishOptions struct {
 	// OverwriteExisting allows overwriting existing schemas
 	OverwriteExisting bool
 }
-

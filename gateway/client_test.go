@@ -107,7 +107,7 @@ func (m *mockRegistry) triggerManifestEvent(eventType farp.EventType, manifest *
 	m.mu.RLock()
 	handler := m.watchHandler
 	m.mu.RUnlock()
-	
+
 	if handler != nil {
 		handler(&farp.ManifestEvent{
 			Type:      eventType,
@@ -151,9 +151,9 @@ func TestClient_WatchServices(t *testing.T) {
 		Location: farp.SchemaLocation{
 			Type: farp.LocationTypeInline,
 		},
-		ContentType:  "application/json",
-		Hash:         "abc123",
-		Size:         1024,
+		ContentType: "application/json",
+		Hash:        "abc123",
+		Size:        1024,
 		InlineSchema: map[string]interface{}{
 			"openapi": "3.1.0",
 			"paths": map[string]interface{}{
@@ -768,4 +768,3 @@ func (m *errorMockRegistry) Close() error {
 func (m *errorMockRegistry) Health(ctx context.Context) error {
 	return m.error
 }
-

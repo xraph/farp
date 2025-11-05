@@ -9,14 +9,14 @@ import (
 
 // ORPCSpec represents a simplified oRPC specification
 type ORPCSpec struct {
-	ORPC            string                     `json:"orpc"`
-	Info            Info                       `json:"info"`
-	Servers         []Server                   `json:"servers,omitempty"`
-	Procedures      map[string]ORPCProcedure   `json:"procedures"`
-	Schemas         map[string]interface{}     `json:"schemas,omitempty"`
+	ORPC            string                        `json:"orpc"`
+	Info            Info                          `json:"info"`
+	Servers         []Server                      `json:"servers,omitempty"`
+	Procedures      map[string]ORPCProcedure      `json:"procedures"`
+	Schemas         map[string]interface{}        `json:"schemas,omitempty"`
 	SecuritySchemes map[string]ORPCSecurityScheme `json:"securitySchemes,omitempty"`
-	Security        []map[string][]string      `json:"security,omitempty"`
-	Extensions      map[string]interface{}     `json:"-"`
+	Security        []map[string][]string         `json:"security,omitempty"`
+	Extensions      map[string]interface{}        `json:"-"`
 }
 
 // ORPCSecurityScheme represents an oRPC security scheme
@@ -213,10 +213,10 @@ func (m *ORPCMerger) MergeORPC(schemas []ORPCServiceSchema) (*ORPCMergeResult, e
 		for name, secScheme := range schema.Parsed.SecuritySchemes {
 			if existingService, exists := seenSecuritySchemes[name]; exists {
 				conflict := Conflict{
-					Type:       ConflictTypeSecurityScheme,
-					Item:       name,
-					Services:   []string{existingService, serviceName},
-					Strategy:   strategy,
+					Type:     ConflictTypeSecurityScheme,
+					Item:     name,
+					Services: []string{existingService, serviceName},
+					Strategy: strategy,
 				}
 
 				switch strategy {
@@ -437,4 +437,3 @@ func SortProcedures(procedures map[string]ORPCProcedure) []string {
 	sort.Strings(keys)
 	return keys
 }
-

@@ -100,10 +100,10 @@ type Parameter struct {
 
 // RequestBody represents an OpenAPI request body
 type RequestBody struct {
-	Description string                            `json:"description,omitempty"`
-	Content     map[string]MediaType              `json:"content"`
-	Required    bool                              `json:"required,omitempty"`
-	Extensions  map[string]interface{}            `json:"-"`
+	Description string                 `json:"description,omitempty"`
+	Content     map[string]MediaType   `json:"content"`
+	Required    bool                   `json:"required,omitempty"`
+	Extensions  map[string]interface{} `json:"-"`
 }
 
 // Response represents an OpenAPI response
@@ -138,21 +138,21 @@ type Header struct {
 // Components represents OpenAPI components
 type Components struct {
 	Schemas         map[string]map[string]interface{} `json:"schemas,omitempty"`
-	Responses       map[string]Response                `json:"responses,omitempty"`
-	Parameters      map[string]Parameter               `json:"parameters,omitempty"`
-	RequestBodies   map[string]RequestBody             `json:"requestBodies,omitempty"`
-	Headers         map[string]Header                  `json:"headers,omitempty"`
-	SecuritySchemes map[string]SecurityScheme          `json:"securitySchemes,omitempty"`
+	Responses       map[string]Response               `json:"responses,omitempty"`
+	Parameters      map[string]Parameter              `json:"parameters,omitempty"`
+	RequestBodies   map[string]RequestBody            `json:"requestBodies,omitempty"`
+	Headers         map[string]Header                 `json:"headers,omitempty"`
+	SecuritySchemes map[string]SecurityScheme         `json:"securitySchemes,omitempty"`
 }
 
 // SecurityScheme represents a security scheme
 type SecurityScheme struct {
 	Type             string `json:"type"` // apiKey, http, oauth2, openIdConnect
 	Description      string `json:"description,omitempty"`
-	Name             string `json:"name,omitempty"`              // For apiKey
-	In               string `json:"in,omitempty"`                // For apiKey: query, header, cookie
-	Scheme           string `json:"scheme,omitempty"`            // For http: bearer, basic
-	BearerFormat     string `json:"bearerFormat,omitempty"`      // For http bearer
+	Name             string `json:"name,omitempty"`             // For apiKey
+	In               string `json:"in,omitempty"`               // For apiKey: query, header, cookie
+	Scheme           string `json:"scheme,omitempty"`           // For http: bearer, basic
+	BearerFormat     string `json:"bearerFormat,omitempty"`     // For http bearer
 	OpenIdConnectURL string `json:"openIdConnectUrl,omitempty"` // For openIdConnect
 }
 
@@ -506,4 +506,3 @@ func SortTags(tags []Tag) []Tag {
 	})
 	return sorted
 }
-

@@ -108,4 +108,3 @@ func TestProtocolConstants(t *testing.T) {
 		t.Errorf("ProtocolVersion = %v, want %v", ProtocolVersion, expectedVersion)
 	}
 }
-

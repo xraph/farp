@@ -233,4 +233,3 @@ func createTestOpenAPISchema(serviceName, path string) map[string]interface{} {
 		},
 	}
 }
-

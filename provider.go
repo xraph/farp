@@ -156,4 +156,3 @@ func HasProvider(schemaType SchemaType) bool {
 func ListProviders() []SchemaType {
 	return globalRegistry.List()
 }
-

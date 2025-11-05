@@ -134,4 +134,3 @@ func TestErrorWrapping(t *testing.T) {
 		t.Error("SchemaError should be identifiable with errors.Is")
 	}
 }
-

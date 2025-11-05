@@ -386,4 +386,3 @@ func TestProvider_GenerateDescriptor_AppError(t *testing.T) {
 		t.Error("expected error when app provides nil routes")
 	}
 }
-

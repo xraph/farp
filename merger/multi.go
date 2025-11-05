@@ -201,4 +201,3 @@ func (r *MultiProtocolResult) HasProtocol(schemaType farp.SchemaType) bool {
 		return false
 	}
 }
-

@@ -22,4 +22,3 @@ func TestConflictStrategy_String(t *testing.T) {
 		})
 	}
 }
-

@@ -88,4 +88,3 @@ type ValidationError struct {
 func (e *ValidationError) Error() string {
 	return "validation error: field=" + e.Field + " message=" + e.Message
 }
-

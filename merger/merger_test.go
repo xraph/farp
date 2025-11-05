@@ -338,4 +338,3 @@ func createTestOpenAPIWithComponents(serviceName string) map[string]interface{} 
 		},
 	}
 }
-

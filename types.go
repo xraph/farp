@@ -1225,4 +1225,3 @@ type ORPCMetadata struct {
 	// Streaming procedures
 	StreamingProcedures []string `json:"streaming_procedures,omitempty"`
 }
-

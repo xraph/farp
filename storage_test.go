@@ -74,12 +74,12 @@ func (m *mockStorageBackend) List(ctx context.Context, prefix string) ([]string,
 func (m *mockStorageBackend) Watch(ctx context.Context, prefix string) (<-chan StorageEvent, error) {
 	ch := make(chan StorageEvent, 10)
 	m.watches[prefix] = append(m.watches[prefix], ch)
-	
+
 	go func() {
 		<-ctx.Done()
 		close(ch)
 	}()
-	
+
 	return ch, nil
 }
 
@@ -143,7 +143,7 @@ func TestStorageHelper_PutJSON_MaxSize(t *testing.T) {
 
 	ctx := context.Background()
 	key := "test-key"
-	
+
 	// Create a large value that exceeds max size
 	largeValue := map[string]interface{}{
 		"data": string(make([]byte, 200)),
@@ -165,7 +165,7 @@ func TestStorageHelper_PutJSON_Compression(t *testing.T) {
 
 	ctx := context.Background()
 	key := "test-key"
-	
+
 	// Create a value that triggers compression
 	value := map[string]interface{}{
 		"data": "this is a long string that should trigger compression",
@@ -418,4 +418,3 @@ func TestManifestStorage_DeleteSchema(t *testing.T) {
 		t.Error("Schema should be deleted")
 	}
 }
-

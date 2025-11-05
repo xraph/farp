@@ -9,13 +9,13 @@ import (
 
 // AsyncAPISpec represents a simplified AsyncAPI 2.x/3.x specification
 type AsyncAPISpec struct {
-	AsyncAPI   string                        `json:"asyncapi"`
-	Info       Info                          `json:"info"`
-	Servers    map[string]AsyncServer        `json:"servers,omitempty"`
-	Channels   map[string]Channel            `json:"channels"`
-	Components *AsyncComponents              `json:"components,omitempty"`
-	Security   []map[string][]string         `json:"security,omitempty"`
-	Extensions map[string]interface{}        `json:"-"`
+	AsyncAPI   string                 `json:"asyncapi"`
+	Info       Info                   `json:"info"`
+	Servers    map[string]AsyncServer `json:"servers,omitempty"`
+	Channels   map[string]Channel     `json:"channels"`
+	Components *AsyncComponents       `json:"components,omitempty"`
+	Security   []map[string][]string  `json:"security,omitempty"`
+	Extensions map[string]interface{} `json:"-"`
 }
 
 // AsyncServer represents an AsyncAPI server (broker connection)
@@ -94,8 +94,8 @@ func (m *AsyncAPIMerger) MergeAsyncAPI(schemas []AsyncAPIServiceSchema) (*AsyncA
 				Description: m.config.MergedDescription,
 				Version:     m.config.MergedVersion,
 			},
-			Servers:    make(map[string]AsyncServer),
-			Channels:   make(map[string]Channel),
+			Servers:  make(map[string]AsyncServer),
+			Channels: make(map[string]Channel),
 			Components: &AsyncComponents{
 				Messages: make(map[string]map[string]interface{}),
 				Schemas:  make(map[string]map[string]interface{}),
@@ -109,10 +109,10 @@ func (m *AsyncAPIMerger) MergeAsyncAPI(schemas []AsyncAPIServiceSchema) (*AsyncA
 	}
 
 	// Track what we've seen for conflict detection
-	seenChannels := make(map[string]string)          // channel -> service
-	seenMessages := make(map[string]string)          // message -> service
-	seenServers := make(map[string]string)           // server -> service
-	seenSecuritySchemes := make(map[string]string)   // security scheme -> service
+	seenChannels := make(map[string]string)        // channel -> service
+	seenMessages := make(map[string]string)        // message -> service
+	seenServers := make(map[string]string)         // server -> service
+	seenSecuritySchemes := make(map[string]string) // security scheme -> service
 
 	// Process each schema
 	for _, schema := range schemas {
@@ -228,10 +228,10 @@ func (m *AsyncAPIMerger) MergeAsyncAPI(schemas []AsyncAPIServiceSchema) (*AsyncA
 			for name, secScheme := range schema.Parsed.Components.SecuritySchemes {
 				if existingService, exists := seenSecuritySchemes[name]; exists {
 					conflict := Conflict{
-						Type:       ConflictTypeSecurityScheme,
-						Item:       name,
-						Services:   []string{existingService, serviceName},
-						Strategy:   strategy,
+						Type:     ConflictTypeSecurityScheme,
+						Item:     name,
+						Services: []string{existingService, serviceName},
+						Strategy: strategy,
 					}
 
 					switch strategy {
@@ -494,4 +494,3 @@ func SortChannels(channels map[string]Channel) []string {
 	sort.Strings(keys)
 	return keys
 }
-

@@ -570,7 +570,7 @@ func TestValidateSchemaDescriptor_EdgeCases(t *testing.T) {
 
 func TestCalculateManifestChecksum_Empty(t *testing.T) {
 	manifest := NewManifest("test-service", "v1.0.0", "instance-123")
-	
+
 	checksum, err := CalculateManifestChecksum(manifest)
 	if err != nil {
 		t.Fatalf("CalculateManifestChecksum failed: %v", err)
@@ -676,4 +676,3 @@ func BenchmarkCalculateSchemaChecksum(b *testing.B) {
 		CalculateSchemaChecksum(schema)
 	}
 }
-

@@ -78,7 +78,7 @@ func main() {
 
 	fmt.Println("Merged API Endpoints (showing routing strategies):")
 	fmt.Println("───────────────────────────────────────────────────────────")
-	
+
 	fmt.Println("\n📍 Root Mounted (/):")
 	for path := range result.Spec.Paths {
 		if !hasPrefix(path) {
@@ -116,13 +116,13 @@ func main() {
 
 	fmt.Println("\n───────────────────────────────────────────────────────────")
 	fmt.Printf("\nTotal Endpoints: %d\n", len(result.Spec.Paths))
-	
+
 	// Show JSON snippet
 	jsonBytes, _ := json.MarshalIndent(map[string]interface{}{
-		"info": result.Spec.Info,
+		"info":  result.Spec.Info,
 		"paths": getSamplePaths(result.Spec.Paths, 3),
 	}, "", "  ")
-	
+
 	fmt.Println("\nMerged Specification Sample:")
 	fmt.Println(string(jsonBytes))
 
@@ -176,11 +176,11 @@ func createSimpleOpenAPI(title, path1, path2 string) map[string]interface{} {
 
 // Helper functions
 func hasPrefix(path string) bool {
-	return len(path) > 1 && path[0] == '/' && path[1] != '/' && 
-		(containsPath(path, "/admin-service") || 
-		 containsPath(path, "/api/legacy") ||
-		 containsPath(path, "/user-api") ||
-		 containsPath(path, "/cache-east-1"))
+	return len(path) > 1 && path[0] == '/' && path[1] != '/' &&
+		(containsPath(path, "/admin-service") ||
+			containsPath(path, "/api/legacy") ||
+			containsPath(path, "/user-api") ||
+			containsPath(path, "/cache-east-1"))
 }
 
 func containsPath(path, prefix string) bool {
@@ -215,4 +215,3 @@ func getSamplePaths(paths map[string]merger.PathItem, limit int) map[string]inte
 	}
 	return result
 }
-

@@ -47,17 +47,17 @@ type StorageEvent struct {
 
 // StorageHelper provides utility functions for storage operations
 type StorageHelper struct {
-	backend           StorageBackend
+	backend              StorageBackend
 	compressionThreshold int64
-	maxSize           int64
+	maxSize              int64
 }
 
 // NewStorageHelper creates a new storage helper
 func NewStorageHelper(backend StorageBackend, compressionThreshold, maxSize int64) *StorageHelper {
 	return &StorageHelper{
-		backend:           backend,
+		backend:              backend,
 		compressionThreshold: compressionThreshold,
-		maxSize:           maxSize,
+		maxSize:              maxSize,
 	}
 }
 
@@ -233,4 +233,3 @@ func (s *ManifestStorage) DeleteSchema(ctx context.Context, path string) error {
 	key := s.schemaKey(path)
 	return s.helper.backend.Delete(ctx, key)
 }
-

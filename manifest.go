@@ -404,4 +404,3 @@ func DiffManifests(old, new *SchemaManifest) *ManifestDiff {
 
 	return diff
 }
-
