@@ -40,6 +40,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -192,7 +194,7 @@ func (c *Client) ConvertToRoutes(manifests []*farp.SchemaManifest) []ServiceRout
 			// Convert schema to routes based on type
 			switch schemaDesc.Type {
 			case farp.SchemaTypeOpenAPI:
-				routes = append(routes, c.convertOpenAPIToRoutes(manifest, schema)...)
+				routes = append(routes, c.convertOpenAPIToRoutes(manifest, schema, &schemaDesc)...)
 			case farp.SchemaTypeAsyncAPI:
 				routes = append(routes, c.convertAsyncAPIToRoutes(manifest, schema)...)
 			case farp.SchemaTypeGraphQL:
@@ -292,8 +294,53 @@ func (c *Client) fetchSchema(ctx context.Context, descriptor *farp.SchemaDescrip
 	}
 }
 
+// getBaseURL extracts the base URL for a service from multiple sources.
+// Priority order:
+// 1. OpenAPI schema's servers array (first server URL)
+// 2. Schema descriptor's Location.URL (extract base URL from full URL)
+// 3. manifest.Instance.Address (convert to http://host:port)
+func (c *Client) getBaseURL(manifest *farp.SchemaManifest, schemaMap map[string]any, schemaDesc *farp.SchemaDescriptor) string {
+	// 1. Try OpenAPI schema's servers array
+	if servers, ok := schemaMap["servers"].([]any); ok && len(servers) > 0 {
+		if server, ok := servers[0].(map[string]any); ok {
+			if serverURL, ok := server["url"].(string); ok && serverURL != "" {
+				// Normalize URL (remove trailing slash)
+				return strings.TrimSuffix(serverURL, "/")
+			}
+		}
+	}
+
+	// 2. Try schema descriptor's Location.URL
+	if schemaDesc != nil && schemaDesc.Location.Type == farp.LocationTypeHTTP && schemaDesc.Location.URL != "" {
+		// Extract base URL from full URL
+		parsedURL, err := url.Parse(schemaDesc.Location.URL)
+		if err == nil {
+			// Reconstruct base URL (scheme + host + port)
+			baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+			if parsedURL.Scheme == "" {
+				// If no scheme, default to http
+				baseURL = fmt.Sprintf("http://%s", parsedURL.Host)
+			}
+			return baseURL
+		}
+	}
+
+	// 3. Try manifest Instance.Address
+	if manifest.Instance != nil && manifest.Instance.Address != "" {
+		address := manifest.Instance.Address
+		// If address doesn't have a scheme, default to http
+		if !strings.Contains(address, "://") {
+			return fmt.Sprintf("http://%s", address)
+		}
+		return address
+	}
+
+	// No URL found
+	return ""
+}
+
 // convertOpenAPIToRoutes converts an OpenAPI schema to gateway routes.
-func (c *Client) convertOpenAPIToRoutes(manifest *farp.SchemaManifest, schema any) []ServiceRoute {
+func (c *Client) convertOpenAPIToRoutes(manifest *farp.SchemaManifest, schema any, schemaDesc *farp.SchemaDescriptor) []ServiceRoute {
 	var routes []ServiceRoute
 
 	// Parse OpenAPI schema
@@ -307,8 +354,12 @@ func (c *Client) convertOpenAPIToRoutes(manifest *farp.SchemaManifest, schema an
 		return routes
 	}
 
-	// Base URL for the service
-	baseURL := fmt.Sprintf("http://%s:%d", manifest.ServiceName, 8080) // TODO: Get from manifest
+	// Base URL for the service - try multiple sources
+	baseURL := c.getBaseURL(manifest, schemaMap, schemaDesc)
+	if baseURL == "" {
+		// Fallback to default if no URL found
+		return routes
+	}
 
 	// Convert each path to a route
 	for path, pathItem := range paths {
