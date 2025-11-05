@@ -160,10 +160,6 @@ linters:
     - contextcheck
     - depguard
 
-  # All available settings of specific linters.
-  settings:
-    # See the dedicated "linters.settings" documentation section.
-    option: value
   # Defines a set of rules to ignore issues.
   # It does not skip the analysis, and so does not ignore "typecheck" errors.
   exclusions:
