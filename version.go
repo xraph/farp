@@ -5,7 +5,7 @@ import "fmt"
 // Protocol version constants
 const (
 	// ProtocolVersion is the current FARP protocol version (semver)
-	ProtocolVersion = "1.0.0"
+	ProtocolVersion = "1.0.1"
 
 	// ProtocolMajor is the major version
 	ProtocolMajor = 1
@@ -14,7 +14,7 @@ const (
 	ProtocolMinor = 0
 
 	// ProtocolPatch is the patch version
-	ProtocolPatch = 0
+	ProtocolPatch = 1
 )
 
 // VersionInfo provides version information about the protocol
