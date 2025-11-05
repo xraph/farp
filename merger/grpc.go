@@ -538,7 +538,7 @@ func getGRPCMessagePrefix(manifest *farp.SchemaManifest, config *farp.Compositio
 	return manifest.ServiceName
 }
 
-// SortServices sorts service names alphabetically.
+// SortGRPCServices sorts service names alphabetically.
 func SortGRPCServices(services map[string]GRPCService) []string {
 	keys := make([]string, 0, len(services))
 	for k := range services {

@@ -151,6 +151,7 @@ func CreateForgeDescriptor(router any, locationType farp.LocationType, locationC
 
 		if headers := locationConfig["headers"]; headers != "" {
 			var headersMap map[string]string
+
 			err := json.Unmarshal([]byte(headers), &headersMap)
 			if err == nil {
 				location.Headers = headersMap

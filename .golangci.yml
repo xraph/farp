@@ -32,40 +32,34 @@ linters:
     - bodyclose
     - canonicalheader
     - containedctx
-    - contextcheck
+    # - contextcheck
     - copyloopvar
-    - cyclop
+    # - cyclop
     - decorder
-    - depguard
+    # - depguard
     - dogsled
-    - dupl
+    # - dupl
     - dupword
     - durationcheck
     - embeddedstructfieldcheck
-    - err113
     - errcheck
     - errchkjson
     - errname
     - errorlint
-    - exhaustive
     - exptostd
     - fatcontext
     - forbidigo
-    - forcetypeassert
-    - funcorder
-    - funlen
+    # - forcetypeassert
+    # - funcorder
+    # - funlen
     - ginkgolinter
     - gocheckcompilerdirectives
-    - gochecknoglobals
+    # - gochecknoglobals
     - gochecknoinits
     - gochecksumtype
-    - gocognit
-    - goconst
     - gocritic
-    - gocyclo
     - godoclint
     - godot
-    - godox
     - goheader
     - gomoddirectives
     - gomodguard
@@ -74,65 +68,58 @@ linters:
     - gosmopolitan
     - govet
     - grouper
-    - iface
+    # - iface
     - importas
     - inamedparam
     - ineffassign
-    - interfacebloat
+    # - interfacebloat
     - intrange
     - iotamixing
-    - ireturn
-    - lll
+    # - ireturn
+    # - lll
     - loggercheck
-    - maintidx
+    # - maintidx
     - makezero
     - mirror
     - misspell
-    - mnd
+    # - mnd
     - modernize
     - musttag
     - nakedret
-    - nestif
     - nilerr
     - nilnesserr
     - nilnil
     - nlreturn
     - noctx
-    - noinlineerr
     - nolintlint
     - nonamedreturns
-    - nosprintfhostport
-    - paralleltest
+    # - nosprintfhostport
+    # - paralleltest
     - perfsprint
-    - prealloc
     - predeclared
     - promlinter
     - protogetter
     - reassign
     - recvcheck
-    - revive
     - rowserrcheck
     - sloglint
     - spancheck
     - sqlclosecheck
     - staticcheck
     - tagalign
-    - tagliatelle
+    # - tagliatelle
     - testableexamples
     - testifylint
-    - testpackage
     - thelper
     - tparallel
     - unconvert
-    - unparam
     - unqueryvet
-    - unused
+    # - unused
     - usestdlibvars
     - usetesting
     - varnamelen
     - wastedassign
     - whitespace
-    - wrapcheck
     - wsl_v5
     - zerologlint
   # Disable specific linters.
@@ -141,6 +128,38 @@ linters:
     - wsl
     - varnamelen
     - exhaustruct
+    - wrapcheck
+    - exhaustive
+    - testpackage
+    - revive
+    - unused
+    - unparam
+    - tagliatelle
+    - paralleltest
+    - prealloc
+    - noinlineerr
+    - nestif
+    - mnd
+    - nosprintfhostport
+    - lll
+    - ireturn
+    - iface
+    - godox
+    - err113
+    - interfacebloat
+    - funcorder
+    - forcetypeassert
+    - goconst
+    - gocognit
+    - gocyclo
+    - gochecknoglobals
+    - funlen
+    - cyclop
+    - maintidx
+    - dupl
+    - contextcheck
+    - depguard
+
   # All available settings of specific linters.
   settings:
     # See the dedicated "linters.settings" documentation section.

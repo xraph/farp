@@ -278,7 +278,7 @@ func TestMerger_ExcludeFromMerge(t *testing.T) {
 
 // Helper functions
 
-func createTestManifest(serviceName, version, instanceID string) *farp.SchemaManifest {
+func createTestManifest(serviceName string, version string, instanceID string) *farp.SchemaManifest {
 	manifest := farp.NewManifest(serviceName, version, instanceID)
 	manifest.Endpoints.Health = "/health"
 	manifest.AddSchema(farp.SchemaDescriptor{

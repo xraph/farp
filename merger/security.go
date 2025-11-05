@@ -3,6 +3,7 @@ package merger
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -341,13 +342,7 @@ func findMostStrictScheme(schemes map[string]SecurityScheme) SecurityScheme {
 }
 
 func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(slice, item)
 }
 
 // GetSecuritySchemeSummary returns a summary of security schemes.
@@ -362,12 +357,14 @@ func GetSecuritySchemeSummary(schemes map[string]SecurityScheme) string {
 	}
 
 	summary := fmt.Sprintf("Security schemes (%d):\n", len(schemes))
+
 	var summarySb346 strings.Builder
 
 	for schemeType, names := range byType {
 		sort.Strings(names)
 		summarySb346.WriteString(fmt.Sprintf("  %s: %v\n", schemeType, names))
 	}
+
 	summary += summarySb346.String()
 
 	return summary

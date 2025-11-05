@@ -456,38 +456,38 @@ func applyOperationPrefixes(item PathItem, opIDPrefix, tagPrefix, serviceName st
 	return item
 }
 
-func mergePathItems(existing, new PathItem) PathItem {
+func mergePathItems(existing, newPath PathItem) PathItem {
 	// Merge operations - prefer non-nil operations
-	if new.Get != nil {
-		existing.Get = new.Get
+	if newPath.Get != nil {
+		existing.Get = newPath.Get
 	}
 
-	if new.Post != nil {
-		existing.Post = new.Post
+	if newPath.Post != nil {
+		existing.Post = newPath.Post
 	}
 
-	if new.Put != nil {
-		existing.Put = new.Put
+	if newPath.Put != nil {
+		existing.Put = newPath.Put
 	}
 
-	if new.Delete != nil {
-		existing.Delete = new.Delete
+	if newPath.Delete != nil {
+		existing.Delete = newPath.Delete
 	}
 
-	if new.Patch != nil {
-		existing.Patch = new.Patch
+	if newPath.Patch != nil {
+		existing.Patch = newPath.Patch
 	}
 
-	if new.Options != nil {
-		existing.Options = new.Options
+	if newPath.Options != nil {
+		existing.Options = newPath.Options
 	}
 
-	if new.Head != nil {
-		existing.Head = new.Head
+	if newPath.Head != nil {
+		existing.Head = newPath.Head
 	}
 
-	if new.Trace != nil {
-		existing.Trace = new.Trace
+	if newPath.Trace != nil {
+		existing.Trace = newPath.Trace
 	}
 
 	return existing

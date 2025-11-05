@@ -193,7 +193,7 @@ func TestClient_GetMergedOpenAPIJSON(t *testing.T) {
 
 // Helper functions
 
-func createTestManifestWithOpenAPI(serviceName, version, instanceID string) *farp.SchemaManifest {
+func createTestManifestWithOpenAPI(serviceName string, version string, instanceID string) *farp.SchemaManifest {
 	manifest := farp.NewManifest(serviceName, version, instanceID)
 	manifest.Endpoints.Health = "/health"
 	manifest.AddSchema(farp.SchemaDescriptor{

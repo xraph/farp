@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -37,10 +38,8 @@ func (m *SchemaManifest) AddSchema(descriptor SchemaDescriptor) {
 // AddCapability adds a capability to the manifest.
 func (m *SchemaManifest) AddCapability(capability string) {
 	// Check if capability already exists
-	for _, c := range m.Capabilities {
-		if c == capability {
-			return
-		}
+	if slices.Contains(m.Capabilities, capability) {
+		return
 	}
 
 	m.Capabilities = append(m.Capabilities, capability)
@@ -182,13 +181,7 @@ func (m *SchemaManifest) GetSchema(schemaType SchemaType) (*SchemaDescriptor, bo
 
 // HasCapability checks if the manifest includes a specific capability.
 func (m *SchemaManifest) HasCapability(capability string) bool {
-	for _, c := range m.Capabilities {
-		if c == capability {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(m.Capabilities, capability)
 }
 
 // Clone creates a deep copy of the manifest.
@@ -224,6 +217,7 @@ func (m *SchemaManifest) ToPrettyJSON() ([]byte, error) {
 // FromJSON deserializes a manifest from JSON.
 func FromJSON(data []byte) (*SchemaManifest, error) {
 	var manifest SchemaManifest
+
 	err := json.Unmarshal(data, &manifest)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidManifest, err)
@@ -289,11 +283,15 @@ func CalculateManifestChecksum(manifest *SchemaManifest) (string, error) {
 	})
 
 	// Concatenate all schema hashes
-	var combined string
-	var combinedSb278 strings.Builder
+	var (
+		combined      string
+		combinedSb278 strings.Builder
+	)
+
 	for _, schema := range sortedSchemas {
 		combinedSb278.WriteString(schema.Hash)
 	}
+
 	combined += combinedSb278.String()
 
 	// Calculate SHA256 of combined hashes
@@ -303,7 +301,7 @@ func CalculateManifestChecksum(manifest *SchemaManifest) (string, error) {
 }
 
 // CalculateSchemaChecksum calculates the SHA256 checksum of a schema.
-func CalculateSchemaChecksum(schema interface{}) (string, error) {
+func CalculateSchemaChecksum(schema any) (string, error) {
 	// Serialize to canonical JSON (map keys are sorted by json.Marshal)
 	data, err := json.Marshal(schema)
 	if err != nil {
@@ -355,7 +353,7 @@ func (d *ManifestDiff) HasChanges() bool {
 }
 
 // DiffManifests compares two manifests and returns the differences.
-func DiffManifests(old, new *SchemaManifest) *ManifestDiff {
+func DiffManifests(old, newManifest *SchemaManifest) *ManifestDiff {
 	diff := &ManifestDiff{}
 
 	// Build maps for easier comparison
@@ -365,7 +363,7 @@ func DiffManifests(old, new *SchemaManifest) *ManifestDiff {
 	}
 
 	newSchemas := make(map[SchemaType]SchemaDescriptor)
-	for _, s := range new.Schemas {
+	for _, s := range newManifest.Schemas {
 		newSchemas[s.Type] = s
 	}
 
@@ -400,7 +398,7 @@ func DiffManifests(old, new *SchemaManifest) *ManifestDiff {
 	}
 
 	newCaps := make(map[string]bool)
-	for _, c := range new.Capabilities {
+	for _, c := range newManifest.Capabilities {
 		newCaps[c] = true
 	}
 
@@ -417,7 +415,7 @@ func DiffManifests(old, new *SchemaManifest) *ManifestDiff {
 	}
 
 	// Compare endpoints (simple comparison)
-	if old.Endpoints != new.Endpoints {
+	if old.Endpoints != newManifest.Endpoints {
 		diff.EndpointsChanged = true
 	}
 

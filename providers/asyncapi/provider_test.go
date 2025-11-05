@@ -367,7 +367,11 @@ func TestProvider_GenerateDescriptor(t *testing.T) {
 			// Check registry path
 			if tt.locationType == farp.LocationTypeRegistry && tt.locationConfig["registry_path"] != "" {
 				if descriptor.Location.RegistryPath != tt.locationConfig["registry_path"] {
-					t.Errorf("expected registry path '%s', got '%s'", tt.locationConfig["registry_path"], descriptor.Location.RegistryPath)
+					t.Errorf(
+						"expected registry path '%s', got '%s'",
+						tt.locationConfig["registry_path"],
+						descriptor.Location.RegistryPath,
+					)
 				}
 			}
 		})

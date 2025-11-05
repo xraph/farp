@@ -152,6 +152,7 @@ func (p *Provider) GenerateDescriptor(ctx context.Context, app farp.Application,
 		if headers := locationConfig["headers"]; headers != "" {
 			// Parse headers from JSON string
 			var headersMap map[string]string
+
 			err := json.Unmarshal([]byte(headers), &headersMap)
 			if err == nil {
 				location.Headers = headersMap

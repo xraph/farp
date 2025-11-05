@@ -421,7 +421,7 @@ func BenchmarkRegistry_RegisterManifest(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		manifest := farp.NewManifest("test-service", "v1.0.0", "instance-"+string(rune(i)))
 		manifest.Endpoints.Health = "/health"
 		registry.RegisterManifest(ctx, manifest)
@@ -439,7 +439,7 @@ func BenchmarkRegistry_GetManifest(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		registry.GetManifest(ctx, manifest.InstanceID)
 	}
 }

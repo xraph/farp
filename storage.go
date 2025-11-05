@@ -83,7 +83,7 @@ func (h *StorageHelper) PutJSON(ctx context.Context, key string, value any) erro
 		}
 
 		data = compressed
-		key = key + ".gz"
+		key += ".gz"
 	}
 
 	return h.backend.Put(ctx, key, data)
@@ -155,7 +155,12 @@ type ManifestStorage struct {
 }
 
 // NewManifestStorage creates a new manifest storage.
-func NewManifestStorage(backend StorageBackend, namespace string, compressionThreshold, maxSize int64) *ManifestStorage {
+func NewManifestStorage(
+	backend StorageBackend,
+	namespace string,
+	compressionThreshold int64,
+	maxSize int64,
+) *ManifestStorage {
 	return &ManifestStorage{
 		helper:    NewStorageHelper(backend, compressionThreshold, maxSize),
 		namespace: namespace,

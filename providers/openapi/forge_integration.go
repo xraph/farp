@@ -52,11 +52,11 @@ func (p *ForgeProvider) GenerateFromRouter(provider any) (any, error) {
 
 	// Use type assertion to get the spec
 	// This works with any type that has an OpenAPISpec() method
-	type hasOpenAPISpec interface {
+	type hasOpenAPISpecI interface {
 		OpenAPISpec() any
 	}
 
-	if specProvider, ok := provider.(hasOpenAPISpec); ok {
+	if specProvider, ok := provider.(hasOpenAPISpecI); ok {
 		spec := specProvider.OpenAPISpec()
 		if spec == nil {
 			return nil, errors.New("OpenAPI spec not available")
@@ -147,6 +147,7 @@ func CreateForgeDescriptor(router any, locationType farp.LocationType, locationC
 
 		if headers := locationConfig["headers"]; headers != "" {
 			var headersMap map[string]string
+
 			err := json.Unmarshal([]byte(headers), &headersMap)
 			if err == nil {
 				location.Headers = headersMap

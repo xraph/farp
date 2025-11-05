@@ -407,9 +407,9 @@ func TestDiffManifests(t *testing.T) {
 	old.AddCapability("rest")
 	old.Endpoints.Health = "/health"
 
-	// Create new manifest
-	new := old.Clone()
-	new.AddSchema(SchemaDescriptor{
+	// Create newPath manifest
+	newPath := old.Clone()
+	newPath.AddSchema(SchemaDescriptor{
 		Type:        SchemaTypeAsyncAPI,
 		SpecVersion: "3.0.0",
 		Location:    SchemaLocation{Type: LocationTypeHTTP, URL: "http://test.com/asyncapi.json"},
@@ -417,12 +417,12 @@ func TestDiffManifests(t *testing.T) {
 		Hash:        "hash2",
 		Size:        512,
 	})
-	new.AddCapability("websocket")
+	newPath.AddCapability("websocket")
 
 	// Change existing schema
-	new.Schemas[0].Hash = "hash1-updated"
+	newPath.Schemas[0].Hash = "hash1-updated"
 
-	diff := DiffManifests(old, new)
+	diff := DiffManifests(old, newPath)
 
 	if !diff.HasChanges() {
 		t.Error("expected changes to be detected")
@@ -627,10 +627,10 @@ func TestDiffManifests_EndpointChanges(t *testing.T) {
 	old := NewManifest("test-service", "v1.0.0", "instance-123")
 	old.Endpoints.Health = "/health"
 
-	new := old.Clone()
-	new.Endpoints.Health = "/healthz"
+	newPath := old.Clone()
+	newPath.Endpoints.Health = "/healthz"
 
-	diff := DiffManifests(old, new)
+	diff := DiffManifests(old, newPath)
 
 	if !diff.EndpointsChanged {
 		t.Error("expected endpoint changes to be detected")
@@ -656,7 +656,7 @@ func BenchmarkManifest_UpdateChecksum(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		manifest.UpdateChecksum()
 	}
 }
@@ -683,7 +683,7 @@ func BenchmarkCalculateSchemaChecksum(b *testing.B) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		CalculateSchemaChecksum(schema)
 	}
 }

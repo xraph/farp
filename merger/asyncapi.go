@@ -452,14 +452,14 @@ func parseAsyncComponents(components map[string]any) *AsyncComponents {
 	return result
 }
 
-func mergeChannels(existing, new Channel) Channel {
+func mergeChannels(existing, newChannel Channel) Channel {
 	// Merge subscribe/publish operations
-	if new.Subscribe != nil {
-		existing.Subscribe = new.Subscribe
+	if newChannel.Subscribe != nil {
+		existing.Subscribe = newChannel.Subscribe
 	}
 
-	if new.Publish != nil {
-		existing.Publish = new.Publish
+	if newChannel.Publish != nil {
+		existing.Publish = newChannel.Publish
 	}
 
 	return existing
