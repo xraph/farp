@@ -99,11 +99,11 @@ func TestProtocolConstants(t *testing.T) {
 		t.Errorf("ProtocolMinor = %v, want 0", ProtocolMinor)
 	}
 
-	if ProtocolPatch != 0 {
-		t.Errorf("ProtocolPatch = %v, want 0", ProtocolPatch)
+	if ProtocolPatch != 1 {
+		t.Errorf("ProtocolPatch = %v, want 1", ProtocolPatch)
 	}
 
-	expectedVersion := "1.0.0"
+	expectedVersion := "1.0.1"
 	if ProtocolVersion != expectedVersion {
 		t.Errorf("ProtocolVersion = %v, want %v", ProtocolVersion, expectedVersion)
 	}
