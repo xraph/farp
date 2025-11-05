@@ -335,8 +335,9 @@ func (c *Client) getBaseURL(manifest *farp.SchemaManifest, schemaMap map[string]
 		return address
 	}
 
-	// No URL found
-	return ""
+	// 4. Fallback: construct default URL from service name (backward compatibility)
+	// This maintains compatibility with tests and cases where no URL is provided
+	return fmt.Sprintf("http://%s:8080", manifest.ServiceName)
 }
 
 // convertOpenAPIToRoutes converts an OpenAPI schema to gateway routes.
@@ -356,10 +357,6 @@ func (c *Client) convertOpenAPIToRoutes(manifest *farp.SchemaManifest, schema an
 
 	// Base URL for the service - try multiple sources
 	baseURL := c.getBaseURL(manifest, schemaMap, schemaDesc)
-	if baseURL == "" {
-		// Fallback to default if no URL found
-		return routes
-	}
 
 	// Convert each path to a route
 	for path, pathItem := range paths {
@@ -411,8 +408,8 @@ func (c *Client) convertAsyncAPIToRoutes(manifest *farp.SchemaManifest, schema a
 		return routes
 	}
 
-	// Base URL for the service
-	baseURL := fmt.Sprintf("http://%s:%d", manifest.ServiceName, 8080)
+	// Base URL for the service - try multiple sources
+	baseURL := c.getBaseURL(manifest, schemaMap, nil)
 
 	// Convert each channel to a route
 	for channelPath := range channels {
@@ -438,7 +435,14 @@ func (c *Client) convertGraphQLToRoutes(manifest *farp.SchemaManifest, schema an
 	var routes []ServiceRoute
 
 	// GraphQL typically has a single endpoint
-	baseURL := fmt.Sprintf("http://%s:%d", manifest.ServiceName, 8080)
+	// Parse schema if it's a map (for consistency)
+	schemaMap, _ := schema.(map[string]any)
+	if schemaMap == nil {
+		schemaMap = make(map[string]any)
+	}
+
+	// Base URL for the service - try multiple sources
+	baseURL := c.getBaseURL(manifest, schemaMap, nil)
 
 	graphqlPath := manifest.Endpoints.GraphQL
 	if graphqlPath == "" {

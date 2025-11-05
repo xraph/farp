@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/xraph/farp"
 )
@@ -53,7 +54,16 @@ func (p *Provider) Endpoint() string {
 	return p.endpoint
 }
 
+// ORPCSchemaProvider is an optional interface that applications can implement
+// to provide a base oRPC schema that will be merged with the generated schema.
+type ORPCSchemaProvider interface {
+	// ORPCSchema returns a base oRPC schema (map[string]any) if the application provides one.
+	// The returned schema will be merged with the generated schema.
+	ORPCSchema() map[string]any
+}
+
 // Generate generates an oRPC schema from the application.
+// If the app implements ORPCSchemaProvider, the provided schema will be merged with the generated one.
 func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, error) {
 	// oRPC schemas are similar to OpenAPI but with RPC-specific conventions:
 	// 1. Methods are typically POST endpoints
@@ -66,6 +76,12 @@ func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, err
 	routes := app.Routes()
 	if routes == nil {
 		return nil, errors.New("application does not provide routes")
+	}
+
+	// Check if app provides a base schema
+	var baseSchema map[string]any
+	if schemaProvider, ok := app.(ORPCSchemaProvider); ok {
+		baseSchema = schemaProvider.ORPCSchema()
 	}
 
 	// Build oRPC spec (similar to OpenAPI but RPC-focused)
@@ -146,10 +162,109 @@ func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, err
 		},
 	}
 
-	// TODO: Process routes and generate procedures
-	// This requires integration with Forge's router to identify RPC handlers
+	// Merge with base schema if provided
+	if baseSchema != nil {
+		spec = p.mergeSchemas(baseSchema, spec)
+	}
 
 	return spec, nil
+}
+
+// mergeSchemas merges a base schema with a generated schema.
+// The base schema takes precedence for top-level fields, but generated fields
+// are merged into the base where appropriate (e.g., procedures and components are combined).
+func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
+	// Start with a copy of the base schema
+	result := maps.Clone(base)
+
+	// Ensure orpc version is set (prefer generated version if base doesn't have it)
+	if result["orpc"] == nil || result["orpc"] == "" {
+		if orpcVersion, ok := generated["orpc"].(string); ok && orpcVersion != "" {
+			result["orpc"] = orpcVersion
+		}
+	}
+
+	// Merge info - prefer base but fill in missing fields from generated
+	if baseInfo, ok := base["info"].(map[string]any); ok {
+		resultInfo := maps.Clone(baseInfo)
+		if generatedInfo, ok := generated["info"].(map[string]any); ok {
+			// Merge info fields, base takes precedence
+			for k, v := range generatedInfo {
+				if _, exists := resultInfo[k]; !exists {
+					resultInfo[k] = v
+				}
+			}
+		}
+		result["info"] = resultInfo
+	} else if generatedInfo, ok := generated["info"].(map[string]any); ok {
+		result["info"] = generatedInfo
+	}
+
+	// Merge procedures - combine both sets (base procedures first, then generated)
+	resultProcedures := make(map[string]any)
+	if baseProcedures, ok := base["procedures"].(map[string]any); ok {
+		maps.Copy(resultProcedures, baseProcedures)
+	}
+	if generatedProcedures, ok := generated["procedures"].(map[string]any); ok {
+		maps.Copy(resultProcedures, generatedProcedures)
+	}
+	result["procedures"] = resultProcedures
+
+	// Merge components - combine both sets
+	if baseComponents, ok := base["components"].(map[string]any); ok {
+		resultComponents := maps.Clone(baseComponents)
+		if generatedComponents, ok := generated["components"].(map[string]any); ok {
+			// Merge each component type
+			for componentType, componentValue := range generatedComponents {
+				if componentMap, ok := componentValue.(map[string]any); ok {
+					if existing, ok := resultComponents[componentType].(map[string]any); ok {
+						// Merge component maps
+						maps.Copy(existing, componentMap)
+						resultComponents[componentType] = existing
+					} else {
+						resultComponents[componentType] = componentMap
+					}
+				} else {
+					resultComponents[componentType] = componentValue
+				}
+			}
+		}
+		result["components"] = resultComponents
+	} else if generatedComponents, ok := generated["components"].(map[string]any); ok {
+		result["components"] = generatedComponents
+	}
+
+	// Merge transport - prefer base but fill in missing fields from generated
+	if baseTransport, ok := base["transport"].(map[string]any); ok {
+		resultTransport := maps.Clone(baseTransport)
+		if generatedTransport, ok := generated["transport"].(map[string]any); ok {
+			// Merge transport fields, base takes precedence
+			for k, v := range generatedTransport {
+				if _, exists := resultTransport[k]; !exists {
+					resultTransport[k] = v
+				}
+			}
+		}
+		result["transport"] = resultTransport
+	} else if generatedTransport, ok := generated["transport"].(map[string]any); ok {
+		result["transport"] = generatedTransport
+	}
+
+	// Copy other fields from generated schema if not present in base
+	for k, v := range generated {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	// Preserve all base schema fields
+	for k, v := range base {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	return result
 }
 
 // Validate validates an oRPC schema.

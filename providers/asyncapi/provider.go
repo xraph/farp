@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/xraph/farp"
 )
@@ -52,15 +53,27 @@ func (p *Provider) Endpoint() string {
 	return p.endpoint
 }
 
+// AsyncAPISchemaProvider is an optional interface that applications can implement
+// to provide a base AsyncAPI schema that will be merged with the generated schema.
+type AsyncAPISchemaProvider interface {
+	// AsyncAPISchema returns a base AsyncAPI schema (map[string]any) if the application provides one.
+	// The returned schema will be merged with the generated schema.
+	AsyncAPISchema() map[string]any
+}
+
 // Generate generates an AsyncAPI schema from the application
 // app should provide Routes() method that returns route information.
+// If the app implements AsyncAPISchemaProvider, the provided schema will be merged with the generated one.
 func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, error) {
-	// This is a placeholder implementation
-	// The actual implementation should integrate with Forge's AsyncAPI generator
-	// For now, we return a minimal valid AsyncAPI schema
 	routes := app.Routes()
 	if routes == nil {
 		return nil, errors.New("application does not provide routes")
+	}
+
+	// Check if app provides a base schema
+	var baseSchema map[string]any
+	if schemaProvider, ok := app.(AsyncAPISchemaProvider); ok {
+		baseSchema = schemaProvider.AsyncAPISchema()
 	}
 
 	// Build minimal AsyncAPI spec
@@ -73,11 +86,79 @@ func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, err
 		"channels":   map[string]any{},
 		"operations": map[string]any{},
 	}
-
-	// TODO: Process streaming routes (WebSocket, SSE) and generate channels/operations
-	// This requires integration with the actual Forge router
+	// Merge with base schema if provided
+	if baseSchema != nil {
+		spec = p.mergeSchemas(baseSchema, spec)
+	}
 
 	return spec, nil
+}
+
+// mergeSchemas merges a base schema with a generated schema.
+// The base schema takes precedence for top-level fields, but generated fields
+// are merged into the base where appropriate (e.g., channels and operations are combined).
+func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
+	// Start with a copy of the base schema
+	result := maps.Clone(base)
+
+	// Ensure asyncapi version is set (prefer generated version if base doesn't have it)
+	if result["asyncapi"] == nil || result["asyncapi"] == "" {
+		if asyncapiVersion, ok := generated["asyncapi"].(string); ok && asyncapiVersion != "" {
+			result["asyncapi"] = asyncapiVersion
+		}
+	}
+
+	// Merge info - prefer base but fill in missing fields from generated
+	if baseInfo, ok := base["info"].(map[string]any); ok {
+		resultInfo := maps.Clone(baseInfo)
+		if generatedInfo, ok := generated["info"].(map[string]any); ok {
+			// Merge info fields, base takes precedence
+			for k, v := range generatedInfo {
+				if _, exists := resultInfo[k]; !exists {
+					resultInfo[k] = v
+				}
+			}
+		}
+		result["info"] = resultInfo
+	} else if generatedInfo, ok := generated["info"].(map[string]any); ok {
+		result["info"] = generatedInfo
+	}
+
+	// Merge channels - combine both sets (base channels first, then generated)
+	resultChannels := make(map[string]any)
+	if baseChannels, ok := base["channels"].(map[string]any); ok {
+		maps.Copy(resultChannels, baseChannels)
+	}
+	if generatedChannels, ok := generated["channels"].(map[string]any); ok {
+		maps.Copy(resultChannels, generatedChannels)
+	}
+	result["channels"] = resultChannels
+
+	// Merge operations - combine both sets (base operations first, then generated)
+	resultOperations := make(map[string]any)
+	if baseOperations, ok := base["operations"].(map[string]any); ok {
+		maps.Copy(resultOperations, baseOperations)
+	}
+	if generatedOperations, ok := generated["operations"].(map[string]any); ok {
+		maps.Copy(resultOperations, generatedOperations)
+	}
+	result["operations"] = resultOperations
+
+	// Copy other fields from generated schema if not present in base
+	for k, v := range generated {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	// Preserve all base schema fields (result already has them from Clone, but ensure completeness)
+	for k, v := range base {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	return result
 }
 
 // Validate validates an AsyncAPI schema.

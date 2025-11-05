@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/xraph/farp"
 )
@@ -52,15 +53,27 @@ func (p *Provider) Endpoint() string {
 	return p.endpoint
 }
 
+// OpenAPISchemaProvider is an optional interface that applications can implement
+// to provide a base OpenAPI schema that will be merged with the generated schema.
+type OpenAPISchemaProvider interface {
+	// OpenAPISchema returns a base OpenAPI schema (map[string]any) if the application provides one.
+	// The returned schema will be merged with the generated schema.
+	OpenAPISchema() map[string]any
+}
+
 // Generate generates an OpenAPI schema from the application
 // app should provide Routes() method that returns route information.
+// If the app implements OpenAPISchemaProvider, the provided schema will be merged with the generated one.
 func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, error) {
-	// This is a placeholder implementation
-	// The actual implementation should integrate with Forge's OpenAPI generator
-	// For now, we return a minimal valid OpenAPI schema
 	routes := app.Routes()
 	if routes == nil {
 		return nil, errors.New("application does not provide routes")
+	}
+
+	// Check if app provides a base schema
+	var baseSchema map[string]any
+	if schemaProvider, ok := app.(OpenAPISchemaProvider); ok {
+		baseSchema = schemaProvider.OpenAPISchema()
 	}
 
 	// Build minimal OpenAPI spec
@@ -73,10 +86,105 @@ func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, err
 		"paths": map[string]any{},
 	}
 
-	// TODO: Process routes and generate paths
-	// This requires integration with the actual Forge router
+	// Merge with base schema if provided
+	if baseSchema != nil {
+		spec = p.mergeSchemas(baseSchema, spec)
+	}
 
 	return spec, nil
+}
+
+// mergeSchemas merges a base schema with a generated schema.
+// The base schema takes precedence for top-level fields, but generated fields
+// are merged into the base where appropriate (e.g., paths and components are combined).
+func (p *Provider) mergeSchemas(base, generated map[string]any) map[string]any {
+	// Start with a copy of the base schema
+	result := maps.Clone(base)
+
+	// Ensure openapi version is set (prefer generated version if base doesn't have it)
+	if result["openapi"] == nil || result["openapi"] == "" {
+		if openapiVersion, ok := generated["openapi"].(string); ok && openapiVersion != "" {
+			result["openapi"] = openapiVersion
+		}
+	}
+
+	// Merge info - prefer base but fill in missing fields from generated
+	if baseInfo, ok := base["info"].(map[string]any); ok {
+		resultInfo := maps.Clone(baseInfo)
+		if generatedInfo, ok := generated["info"].(map[string]any); ok {
+			// Merge info fields, base takes precedence
+			for k, v := range generatedInfo {
+				if _, exists := resultInfo[k]; !exists {
+					resultInfo[k] = v
+				}
+			}
+		}
+		result["info"] = resultInfo
+	} else if generatedInfo, ok := generated["info"].(map[string]any); ok {
+		result["info"] = generatedInfo
+	}
+
+	// Merge paths - combine both sets (base paths first, then generated)
+	resultPaths := make(map[string]any)
+	if basePaths, ok := base["paths"].(map[string]any); ok {
+		maps.Copy(resultPaths, basePaths)
+	}
+	if generatedPaths, ok := generated["paths"].(map[string]any); ok {
+		maps.Copy(resultPaths, generatedPaths)
+	}
+	result["paths"] = resultPaths
+
+	// Merge components - combine both sets
+	if baseComponents, ok := base["components"].(map[string]any); ok {
+		resultComponents := maps.Clone(baseComponents)
+		if generatedComponents, ok := generated["components"].(map[string]any); ok {
+			// Merge each component type
+			for componentType, componentValue := range generatedComponents {
+				if componentMap, ok := componentValue.(map[string]any); ok {
+					if existing, ok := resultComponents[componentType].(map[string]any); ok {
+						// Merge component maps
+						maps.Copy(existing, componentMap)
+						resultComponents[componentType] = existing
+					} else {
+						resultComponents[componentType] = componentMap
+					}
+				} else {
+					resultComponents[componentType] = componentValue
+				}
+			}
+		}
+		result["components"] = resultComponents
+	} else if generatedComponents, ok := generated["components"].(map[string]any); ok {
+		result["components"] = generatedComponents
+	}
+
+	// Merge servers - combine both sets
+	if baseServers, ok := base["servers"].([]any); ok {
+		resultServers := make([]any, len(baseServers))
+		copy(resultServers, baseServers)
+		if generatedServers, ok := generated["servers"].([]any); ok {
+			resultServers = append(resultServers, generatedServers...)
+		}
+		result["servers"] = resultServers
+	} else if generatedServers, ok := generated["servers"].([]any); ok {
+		result["servers"] = generatedServers
+	}
+
+	// Copy other fields from generated schema if not present in base
+	for k, v := range generated {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	// Preserve all base schema fields
+	for k, v := range base {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+
+	return result
 }
 
 // Validate validates an OpenAPI schema.
