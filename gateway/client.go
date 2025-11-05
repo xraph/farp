@@ -12,7 +12,7 @@
 //
 // # What This Package Does NOT Provide
 //
-// - Complete HTTP client (HTTP schema fetch has TODO)
+// - Complete HTTP client (HTTP schema fetch implemented)
 // - Production-ready error handling
 // - Gateway-specific route application
 // - Health monitoring
@@ -35,9 +35,13 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"sync"
+	"time"
 
 	"github.com/xraph/farp"
 	"github.com/xraph/farp/merger"
@@ -53,22 +57,68 @@ type Client struct {
 	manifestCache map[string]*farp.SchemaManifest // key: instanceID
 	schemaCache   map[string]any                  // key: hash
 	merger        *merger.Merger
+	httpClient    *http.Client
 	mu            sync.RWMutex
 }
 
+// ClientOption configures a Client.
+type ClientOption func(*Client)
+
+// WithHTTPClient sets a custom HTTP client for schema fetching.
+// This is useful when you need custom authentication, TLS configuration, or other HTTP client settings.
+//
+// Example:
+//
+//	client := http.Client{
+//		Timeout: 60 * time.Second,
+//		Transport: &http.Transport{
+//			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+//		},
+//	}
+//	gatewayClient := gateway.NewClient(registry, gateway.WithHTTPClient(&client))
+func WithHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) {
+		if httpClient != nil {
+			c.httpClient = httpClient
+		}
+	}
+}
+
 // NewClient creates a new gateway client with default merger config.
-func NewClient(registry farp.SchemaRegistry) *Client {
-	return NewClientWithConfig(registry, merger.DefaultMergerConfig())
+// Options can be provided to customize the client behavior.
+//
+// Example:
+//
+//	client := gateway.NewClient(registry, gateway.WithHTTPClient(customHTTPClient))
+func NewClient(registry farp.SchemaRegistry, opts ...ClientOption) *Client {
+	return NewClientWithConfig(registry, merger.DefaultMergerConfig(), opts...)
 }
 
 // NewClientWithConfig creates a new gateway client with custom merger config.
-func NewClientWithConfig(registry farp.SchemaRegistry, mergerConfig merger.MergerConfig) *Client {
-	return &Client{
+// Options can be provided to customize the client behavior.
+//
+// Example:
+//
+//	config := merger.DefaultMergerConfig()
+//	config.Timeout = 60 * time.Second
+//	client := gateway.NewClientWithConfig(registry, config, gateway.WithHTTPClient(customHTTPClient))
+func NewClientWithConfig(registry farp.SchemaRegistry, mergerConfig merger.MergerConfig, opts ...ClientOption) *Client {
+	c := &Client{
 		registry:      registry,
 		manifestCache: make(map[string]*farp.SchemaManifest),
 		schemaCache:   make(map[string]any),
 		merger:        merger.NewMerger(mergerConfig),
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
 // WatchServices watches for service registrations and schema updates
@@ -191,9 +241,51 @@ func (c *Client) fetchSchema(ctx context.Context, descriptor *farp.SchemaDescrip
 		return c.registry.FetchSchema(ctx, descriptor.Location.RegistryPath)
 
 	case farp.LocationTypeHTTP:
-		// TODO: Implement HTTP fetch
-		// This would use an HTTP client to fetch from descriptor.Location.URL
-		return nil, errors.New("HTTP schema fetch not yet implemented")
+		if descriptor.Location.URL == "" {
+			return nil, errors.New("URL is required for HTTP location type")
+		}
+
+		// Create HTTP request with context
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, descriptor.Location.URL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		}
+
+		// Set headers if provided
+		for key, value := range descriptor.Location.Headers {
+			req.Header.Set(key, value)
+		}
+
+		// Set Accept header for JSON schemas
+		if req.Header.Get("Accept") == "" {
+			req.Header.Set("Accept", "application/json")
+		}
+
+		// Execute request
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch schema from URL %s: %w", descriptor.Location.URL, err)
+		}
+		defer resp.Body.Close()
+
+		// Check status code
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("HTTP request failed with status %d: %s", resp.StatusCode, resp.Status)
+		}
+
+		// Read response body
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		// Parse JSON response
+		var schema any
+		if err := json.Unmarshal(body, &schema); err != nil {
+			return nil, fmt.Errorf("failed to parse JSON schema from %s: %w", descriptor.Location.URL, err)
+		}
+
+		return schema, nil
 
 	default:
 		return nil, fmt.Errorf("%w: %s", farp.ErrInvalidLocation, descriptor.Location.Type)
