@@ -7,8 +7,8 @@
 [![Release](https://img.shields.io/github/v/release/xraph/farp)](https://github.com/xraph/farp/releases)
 
 **Version**: 1.0.0  
-**Status**: Production Ready  
-**Authors**: Forge Core Team  
+**Status**: Production Ready*
+**Authors**: xRaph
 **Last Updated**: 2025-11-01
 
 ## Overview
