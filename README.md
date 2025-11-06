@@ -1,12 +1,12 @@
 # FARP - Forge API Gateway Registration Protocol
 
-FARP™ is a service manifest and schema-discovery protocol maintained by XRAPH™.
-
 [![CI](https://github.com/xraph/farp/workflows/CI/badge.svg)](https://github.com/xraph/farp/actions?query=workflow%3ACI)
 [![Go Report Card](https://goreportcard.com/badge/github.com/xraph/farp)](https://goreportcard.com/report/github.com/xraph/farp)
 [![GoDoc](https://godoc.org/github.com/xraph/farp?status.svg)](https://godoc.org/github.com/xraph/farp)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/xraph/farp)](https://github.com/xraph/farp/releases)
+
+FARP™ is a service manifest and schema-discovery protocol maintained by XRAPH™.
 
 **Authors**: [Rex Raphael](https://github.com/juicycleff)
 **Last Updated**: 2025-11-01
