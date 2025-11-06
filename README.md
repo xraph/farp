@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/xraph/farp)](https://github.com/xraph/farp/releases)
 
-**Authors**: [Rex Raphael](https://githib.com/juicycleff)
+**Authors**: [Rex Raphael](https://github.com/juicycleff)
 **Last Updated**: 2025-11-01
 
 ## Overview
