@@ -9,6 +9,7 @@
 FARP™ is a service manifest and schema-discovery protocol maintained by XRAPH™.
 
 **Authors**: [Rex Raphael](https://github.com/juicycleff)
+
 **Last Updated**: 2025-11-01
 
 ## Overview
