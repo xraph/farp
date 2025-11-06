@@ -9,6 +9,8 @@
 **Authors**: [Rex Raphael](https://github.com/juicycleff)
 **Last Updated**: 2025-11-01
 
+FARP is maintained by the **XRAPH** project.
+
 ## Overview
 
 FARP (Forge API Gateway Registration Protocol) is a **protocol specification library** that enables service instances to communicate their API schemas, health information, and capabilities to API gateways and service meshes. It provides standardized data structures, schema generation tooling, and merging utilities—but **does not implement HTTP servers, gateway logic, or service discovery**.
