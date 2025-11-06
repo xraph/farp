@@ -5,6 +5,21 @@ All notable changes to FARP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1](https://github.com/xraph/farp/compare/v1.0.0...v1.0.1) (2025-11-06)
+
+
+### Bug Fixes
+
+* correct author link in README ([923020a](https://github.com/xraph/farp/commit/923020a5479a4f2d14f95a3851d6723f0479bfe2))
+* improve CI checks for TODOs and debug statements ([d54b7e0](https://github.com/xraph/farp/commit/d54b7e0da2b456d35ab77c690af6cb1cec825abd))
+* update copyright and maintainership information ([589b0da](https://github.com/xraph/farp/commit/589b0da51a480bf0f1795abe2be15043d3b9ff5a))
+* update README to correct FARP description formatting ([eadfb2f](https://github.com/xraph/farp/commit/eadfb2fbc1e76727286b07d2156e3081dd7b5e16))
+
+
+### Documentation
+
+* update README to include last updated date ([1f017ac](https://github.com/xraph/farp/commit/1f017ac17b8e3763ff16909deea3c6a174804f54))
+
 ## 1.0.0 (2025-11-05)
 
 
