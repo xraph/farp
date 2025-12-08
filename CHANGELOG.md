@@ -5,6 +5,14 @@ All notable changes to FARP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2](https://github.com/xraph/farp/compare/v1.0.1...v1.0.2) (2025-12-08)
+
+
+### Bug Fixes
+
+* add Makefile for Go project management and update version comments ([29ac0eb](https://github.com/xraph/farp/commit/29ac0eb7bccf2a993111d7ffe16d29d4021cf19c))
+* update contact email for security team in SECURITY.md ([c792678](https://github.com/xraph/farp/commit/c7926784681a87cc3c0f70f3584e1577cce66b03))
+
 ## [1.0.1](https://github.com/xraph/farp/compare/v1.0.0...v1.0.1) (2025-11-06)
 
 
