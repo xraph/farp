@@ -109,7 +109,7 @@ jobs:
           go build -v -ldflags="-X 'github.com/xraph/farp.ProtocolVersion=${{ steps.get_tag.outputs.version }}'" -o farp-basic-example .
 
       - name: Upload example binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: go-example-binary
           path: examples/basic/farp-basic-example
@@ -207,14 +207,14 @@ jobs:
 
       - name: Upload Rust library artifacts
         if: steps.check_cargo.outputs.exists == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: rust-library
           path: farp-rust/target/release/libfarp*
 
       - name: Upload documentation artifacts
         if: steps.check_cargo.outputs.exists == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: rust-docs
           path: farp-rust/target/doc/
