@@ -21,7 +21,7 @@ We take security seriously. If you discover a security vulnerability, please fol
 
 ### DO:
 
-1. **Email Security Team**: security@xraph.com (or through GitHub Security Advisory)
+1. **Email Security Team**: rex@xraph.com (or through GitHub Security Advisory)
 2. **Provide Details**:
    - Description of vulnerability
    - Steps to reproduce
