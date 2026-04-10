@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/xraph/farp"
@@ -181,13 +182,31 @@ func TestClient_GetMergedOpenAPIJSON(t *testing.T) {
 	client.schemaCache[hash] = schema
 	client.mu.Unlock()
 
-	json, err := client.GetMergedOpenAPIJSON(ctx, "")
+	jsonData, err := client.GetMergedOpenAPIJSON(ctx, "")
 	if err != nil {
 		t.Fatalf("GetMergedOpenAPIJSON failed: %v", err)
 	}
 
-	if len(json) == 0 {
+	if len(jsonData) == 0 {
 		t.Error("Expected JSON output to be non-empty")
+	}
+
+	// Verify it's valid JSON that can be parsed back into OpenAPISpec
+	var spec merger.OpenAPISpec
+	if err := json.Unmarshal(jsonData, &spec); err != nil {
+		t.Fatalf("GetMergedOpenAPIJSON returned invalid JSON: %v", err)
+	}
+
+	if spec.OpenAPI != "3.1.0" {
+		t.Errorf("Expected openapi 3.1.0, got %s", spec.OpenAPI)
+	}
+
+	if spec.Info.Title == "" {
+		t.Error("Expected non-empty title in merged spec")
+	}
+
+	if len(spec.Paths) == 0 {
+		t.Error("Expected paths in merged spec")
 	}
 }
 

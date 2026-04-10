@@ -6,7 +6,9 @@ This document clarifies **exactly** what FARP provides versus what you must impl
 
 ## Quick Answer
 
-**FARP is a protocol spec + tooling library**, like `protobuf` or `openapi-generator`. It defines data formats and provides schema generation, but **you must implement the HTTP transport layer**.
+**FARP provides the protocol, schema tooling, service discovery, and HTTP handlers.** You provide the HTTP router and gateway proxy. With `ServiceNode` and `GatewayNode`, most integration is a few lines of code.
+
+> **New in v1.1.0**: The `discovery/` package provides complete service discovery with 6 backends (Consul, etcd, Kubernetes, Redis, mDNS, Push), auto-registration, health management, and FARP HTTP handlers. See [DISCOVERY.md](DISCOVERY.md) for the full guide.
 
 ---
 

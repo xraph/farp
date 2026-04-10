@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strings"
 
 	"github.com/xraph/farp"
 )
@@ -76,14 +77,14 @@ func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, err
 		baseSchema = schemaProvider.OpenAPISchema()
 	}
 
-	// Build minimal OpenAPI spec
+	// Build OpenAPI spec with paths generated from routes
 	spec := map[string]any{
 		"openapi": p.specVersion,
 		"info": map[string]any{
 			"title":   app.Name(),
 			"version": app.Version(),
 		},
-		"paths": map[string]any{},
+		"paths": p.buildPaths(routes),
 	}
 
 	// Merge with base schema if provided
@@ -92,6 +93,124 @@ func (p *Provider) Generate(ctx context.Context, app farp.Application) (any, err
 	}
 
 	return spec, nil
+}
+
+// buildPaths converts route information into OpenAPI path items.
+// Supports multiple route representations:
+//   - []farp.RouteDescriptor — FARP native route descriptors
+//   - map[string]any — direct OpenAPI paths object
+//   - []any — generic route list (attempts conversion)
+func (p *Provider) buildPaths(routes any) map[string]any {
+	paths := make(map[string]any)
+
+	switch r := routes.(type) {
+	case []farp.RouteDescriptor:
+		for _, rd := range r {
+			pathItem := p.routeDescriptorToPathItem(rd)
+			if existing, ok := paths[rd.Path]; ok {
+				// Merge methods into existing path item
+				if existingMap, ok := existing.(map[string]any); ok {
+					for k, v := range pathItem {
+						existingMap[k] = v
+					}
+				}
+			} else {
+				paths[rd.Path] = pathItem
+			}
+		}
+
+	case map[string]any:
+		// Already OpenAPI paths format — use directly
+		return r
+
+	case []any:
+		// Try to convert generic slice to RouteDescriptors
+		for _, item := range r {
+			if rd, ok := p.tryConvertToRouteDescriptor(item); ok {
+				pathItem := p.routeDescriptorToPathItem(rd)
+				if existing, ok := paths[rd.Path]; ok {
+					if existingMap, ok := existing.(map[string]any); ok {
+						for k, v := range pathItem {
+							existingMap[k] = v
+						}
+					}
+				} else {
+					paths[rd.Path] = pathItem
+				}
+			}
+		}
+	}
+
+	return paths
+}
+
+// routeDescriptorToPathItem converts a RouteDescriptor into an OpenAPI path item.
+func (p *Provider) routeDescriptorToPathItem(rd farp.RouteDescriptor) map[string]any {
+	pathItem := make(map[string]any)
+
+	methods := rd.Methods
+	if len(methods) == 0 {
+		// Default to GET if no methods specified
+		methods = []string{"GET"}
+	}
+
+	for _, method := range methods {
+		operation := map[string]any{
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Successful response",
+				},
+			},
+		}
+
+		if rd.OperationID != "" {
+			operation["operationId"] = fmt.Sprintf("%s_%s", strings.ToLower(method), rd.OperationID)
+		}
+
+		if rd.Metadata != nil {
+			if summary, ok := rd.Metadata["summary"]; ok {
+				operation["summary"] = summary
+			}
+			if description, ok := rd.Metadata["description"]; ok {
+				operation["description"] = description
+			}
+			if tags, ok := rd.Metadata["tags"]; ok {
+				operation["tags"] = tags
+			}
+		}
+
+		pathItem[strings.ToLower(method)] = operation
+	}
+
+	return pathItem
+}
+
+// tryConvertToRouteDescriptor attempts to convert a generic value to a RouteDescriptor.
+func (p *Provider) tryConvertToRouteDescriptor(item any) (farp.RouteDescriptor, bool) {
+	switch v := item.(type) {
+	case farp.RouteDescriptor:
+		return v, true
+	case map[string]any:
+		rd := farp.RouteDescriptor{}
+		if path, ok := v["path"].(string); ok {
+			rd.Path = path
+		} else {
+			return rd, false
+		}
+		if methods, ok := v["methods"].([]any); ok {
+			for _, m := range methods {
+				if ms, ok := m.(string); ok {
+					rd.Methods = append(rd.Methods, ms)
+				}
+			}
+		}
+		if opID, ok := v["operation_id"].(string); ok {
+			rd.OperationID = opID
+		}
+		return rd, rd.Path != ""
+	}
+
+	return farp.RouteDescriptor{}, false
 }
 
 // mergeSchemas merges a base schema with a generated schema.

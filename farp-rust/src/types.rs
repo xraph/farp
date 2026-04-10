@@ -490,6 +490,9 @@ pub enum WebhookEventType {
     /// Old routes are draining connections
     #[serde(rename = "routes.draining")]
     RoutesDraining,
+    /// Gateway is shutting down (fire-and-forget notification to services)
+    #[serde(rename = "gateway.shutdown")]
+    GatewayShutdown,
 }
 
 impl std::fmt::Display for WebhookEventType {
@@ -507,6 +510,7 @@ impl std::fmt::Display for WebhookEventType {
             WebhookEventType::RoutesChanging => "routes.changing",
             WebhookEventType::RoutesChanged => "routes.changed",
             WebhookEventType::RoutesDraining => "routes.draining",
+            WebhookEventType::GatewayShutdown => "gateway.shutdown",
         };
         write!(f, "{s}")
     }
@@ -928,7 +932,7 @@ pub struct RoutingConfig {
 }
 
 fn default_mount_strategy() -> MountStrategy {
-    MountStrategy::Instance
+    MountStrategy::Service
 }
 
 /// Path rewrite rule
@@ -1829,7 +1833,7 @@ mod tests {
     #[test]
     fn test_mount_strategy_default() {
         let strategy = MountStrategy::default();
-        assert_eq!(strategy, MountStrategy::Instance);
+        assert_eq!(strategy, MountStrategy::Service);
     }
 
     #[test]

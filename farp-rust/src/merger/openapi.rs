@@ -121,6 +121,11 @@ fn parse_paths(obj: &serde_json::Map<String, serde_json::Value>) -> HashMap<Stri
 }
 
 fn parse_path_item(obj: &serde_json::Map<String, serde_json::Value>) -> PathItem {
+    // Try serde deserialization first to preserve all fields (parameters, etc.)
+    if let Ok(item) = serde_json::from_value::<PathItem>(serde_json::Value::Object(obj.clone())) {
+        return item;
+    }
+    // Fallback to manual parsing for malformed specs
     PathItem {
         summary: obj
             .get("summary")
@@ -162,7 +167,7 @@ fn parse_path_item(obj: &serde_json::Map<String, serde_json::Value>) -> PathItem
             .get("trace")
             .and_then(|v| v.as_object())
             .map(parse_operation_public),
-        parameters: Vec::new(),
+        parameters: parse_parameters(obj.get("parameters")),
         extensions: obj
             .iter()
             .filter(|(k, _)| k.starts_with("x-"))
@@ -174,6 +179,12 @@ fn parse_path_item(obj: &serde_json::Map<String, serde_json::Value>) -> PathItem
 pub(crate) fn parse_operation_public(
     obj: &serde_json::Map<String, serde_json::Value>,
 ) -> Operation {
+    // Try serde deserialization first to preserve all fields
+    // (parameters, requestBody, responses, security)
+    if let Ok(op) = serde_json::from_value::<Operation>(serde_json::Value::Object(obj.clone())) {
+        return op;
+    }
+    // Fallback to manual parsing for malformed specs
     Operation {
         operation_id: obj
             .get("operationId")
@@ -196,10 +207,17 @@ pub(crate) fn parse_operation_public(
                     .collect()
             })
             .unwrap_or_default(),
-        parameters: Vec::new(),
-        request_body: None,
-        responses: None,
-        security: Vec::new(),
+        parameters: parse_parameters(obj.get("parameters")),
+        request_body: obj
+            .get("requestBody")
+            .and_then(|v| serde_json::from_value(v.clone()).ok()),
+        responses: obj
+            .get("responses")
+            .and_then(|v| serde_json::from_value(v.clone()).ok()),
+        security: obj
+            .get("security")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
         deprecated: obj.get("deprecated").and_then(|v| v.as_bool()),
         extensions: obj
             .iter()
@@ -210,6 +228,11 @@ pub(crate) fn parse_operation_public(
 }
 
 fn parse_components(obj: &serde_json::Map<String, serde_json::Value>) -> Components {
+    // Try serde deserialization first to preserve all component types
+    if let Ok(comp) = serde_json::from_value::<Components>(serde_json::Value::Object(obj.clone())) {
+        return comp;
+    }
+    // Fallback: parse what we can manually
     let schemas = obj
         .get("schemas")
         .and_then(|v| v.as_object())
@@ -223,12 +246,34 @@ fn parse_components(obj: &serde_json::Map<String, serde_json::Value>) -> Compone
 
     Components {
         schemas,
-        responses: HashMap::new(),
-        parameters: HashMap::new(),
-        request_bodies: HashMap::new(),
-        headers: HashMap::new(),
-        security_schemes: HashMap::new(),
+        responses: obj
+            .get("responses")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
+        parameters: obj
+            .get("parameters")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
+        request_bodies: obj
+            .get("requestBodies")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
+        headers: obj
+            .get("headers")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
+        security_schemes: obj
+            .get("securitySchemes")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .unwrap_or_default(),
     }
+}
+
+/// Parse parameters from a JSON value
+fn parse_parameters(value: Option<&serde_json::Value>) -> Vec<Parameter> {
+    value
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default()
 }
 
 fn parse_tags(arr: &[serde_json::Value]) -> Vec<Tag> {

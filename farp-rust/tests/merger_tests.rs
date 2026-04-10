@@ -135,9 +135,9 @@ fn test_basic_merge() {
         .included_services
         .contains(&"product-service".to_string()));
 
-    // Check paths were merged
-    assert!(result.spec.paths.contains_key("/instance-1/users"));
-    assert!(result.spec.paths.contains_key("/instance-2/products"));
+    // Check paths were merged (MountStrategy::Service prefixes with service name)
+    assert!(result.spec.paths.contains_key("/user-service/users"));
+    assert!(result.spec.paths.contains_key("/product-service/products"));
 
     // Check components were prefixed and merged
     if let Some(components) = &result.spec.components {

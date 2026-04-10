@@ -792,19 +792,67 @@ func (c *Client) GetMergedOpenAPIJSON(ctx context.Context, serviceName string) (
 		return nil, err
 	}
 
-	// Convert to JSON
-	// Note: In production, you'd use a proper JSON marshaler
-	// For now, return a placeholder
-	return fmt.Appendf(nil, `{
-		"openapi": "%s",
-		"info": {
-			"title": "%s",
-			"description": "%s",
-			"version": "%s"
-		},
-		"paths": {},
-		"components": {}
-	}`, result.Spec.OpenAPI, result.Spec.Info.Title, result.Spec.Info.Description, result.Spec.Info.Version), nil
+	return json.MarshalIndent(result.Spec, "", "  ")
+}
+
+// GetMergedAsyncAPIJSON returns the merged AsyncAPI spec as JSON.
+func (c *Client) GetMergedAsyncAPIJSON(ctx context.Context, serviceName string) ([]byte, error) {
+	result, err := c.GenerateMergedSchemas(ctx, serviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	if result.AsyncAPI == nil || result.AsyncAPI.Spec == nil {
+		return json.Marshal(map[string]any{})
+	}
+
+	return json.MarshalIndent(result.AsyncAPI.Spec, "", "  ")
+}
+
+// GetManifestsHash returns a composite hash of all cached manifests.
+// This hash changes whenever any manifest is added, updated, or removed.
+// Used by FederatedSchemaHandler to detect when re-merging is needed.
+func (c *Client) GetManifestsHash() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return computeManifestsHash(c.manifestCache)
+}
+
+// GetCachedManifests returns a snapshot of all cached manifests.
+func (c *Client) GetCachedManifests() []*farp.SchemaManifest {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	manifests := make([]*farp.SchemaManifest, 0, len(c.manifestCache))
+	for _, m := range c.manifestCache {
+		manifests = append(manifests, m)
+	}
+
+	return manifests
+}
+
+// computeManifestsHash computes a composite SHA256 hash of all manifest checksums.
+// The hash changes when any manifest is added, updated, or removed.
+func computeManifestsHash(cache map[string]*farp.SchemaManifest) string {
+	type entry struct {
+		ID       string `json:"id"`
+		Checksum string `json:"cs"`
+	}
+
+	entries := make([]entry, 0, len(cache))
+	for id, m := range cache {
+		entries = append(entries, entry{ID: id, Checksum: m.Checksum})
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].ID < entries[j].ID
+	})
+
+	data, _ := json.Marshal(entries)
+	hash := sha256.Sum256(data)
+
+	return hex.EncodeToString(hash[:])
 }
 
 // getSchemaFromCache retrieves a cached schema by hash.

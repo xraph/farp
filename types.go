@@ -725,11 +725,31 @@ const (
 
 	// EventRoutesDraining indicates old routes are draining connections.
 	EventRoutesDraining WebhookEventType = "routes.draining"
+
+	// EventGatewayShutdown indicates the gateway is shutting down.
+	// Services receive this as a fire-and-forget notification so they can
+	// adjust behavior (e.g., buffer events, switch to fallback, re-discover).
+	EventGatewayShutdown WebhookEventType = "gateway.shutdown"
 )
 
 // String returns the string representation of the webhook event type.
 func (wet WebhookEventType) String() string {
 	return string(wet)
+}
+
+// WebhookEvent is the payload sent to service webhook endpoints.
+type WebhookEvent struct {
+	// Type of event
+	Type WebhookEventType `json:"type"`
+
+	// Timestamp of the event (Unix seconds)
+	Timestamp int64 `json:"timestamp"`
+
+	// Source identifier (e.g., gateway instance ID)
+	Source string `json:"source,omitempty"`
+
+	// Optional data payload specific to the event type
+	Data map[string]any `json:"data,omitempty"`
 }
 
 // RetryConfig defines retry configuration.

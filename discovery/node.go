@@ -1,9 +1,11 @@
 package discovery
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -233,7 +235,7 @@ type serviceApp struct {
 
 func (a *serviceApp) Name() string    { return a.config.ServiceName }
 func (a *serviceApp) Version() string { return a.config.ServiceVersion }
-func (a *serviceApp) Routes() any     { return nil }
+func (a *serviceApp) Routes() any     { return a.config.Routes }
 
 func (n *ServiceNode) generateSchemas(ctx context.Context) error {
 	app := &serviceApp{config: &n.config}
@@ -501,7 +503,12 @@ func (n *GatewayNode) Start(ctx context.Context) error {
 }
 
 // Stop stops watching and cleans up.
+// Before shutting down, it sends a fire-and-forget gateway.shutdown notification
+// to all services that have a webhook endpoint configured.
 func (n *GatewayNode) Stop(_ context.Context) error {
+	// Notify services before stopping (fire-and-forget)
+	n.notifyServicesShutdown()
+
 	if n.cancel != nil {
 		n.cancel()
 		<-n.done
@@ -657,6 +664,67 @@ func (n *GatewayNode) notifyRouteChange() {
 	if n.config.OnRoutesChanged != nil {
 		routes := n.Routes()
 		n.config.OnRoutesChanged(routes)
+	}
+}
+
+// notifyServicesShutdown sends a gateway.shutdown event to all services that
+// have a webhook endpoint configured. This is fire-and-forget: each notification
+// is dispatched in its own goroutine with a short timeout, and errors are silently
+// discarded. The gateway does not wait for responses.
+func (n *GatewayNode) notifyServicesShutdown() {
+	n.mu.RLock()
+	manifests := make([]*farp.SchemaManifest, 0, len(n.manifests))
+	for _, m := range n.manifests {
+		manifests = append(manifests, m)
+	}
+	n.mu.RUnlock()
+
+	if len(manifests) == 0 {
+		return
+	}
+
+	event := farp.WebhookEvent{
+		Type:      farp.EventGatewayShutdown,
+		Timestamp: time.Now().Unix(),
+		Source:    "gateway",
+	}
+
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+
+	client := n.config.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: 3 * time.Second}
+	}
+
+	for _, manifest := range manifests {
+		webhookURL := manifest.Webhook.ServiceWebhook
+		if webhookURL == "" {
+			continue
+		}
+
+		// Fire and forget — each in its own goroutine
+		go func(url string) {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+			if err != nil {
+				return
+			}
+
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Farp-Event", string(farp.EventGatewayShutdown))
+
+			resp, err := client.Do(req)
+			if err != nil {
+				return
+			}
+
+			resp.Body.Close()
+		}(webhookURL)
 	}
 }
 

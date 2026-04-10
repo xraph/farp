@@ -4327,6 +4327,138 @@ Service hints are **non-binding suggestions** from the service to the gateway. G
 }
 ```
 
+### 13.6 Rate Limiting (v1.1.0)
+
+```json
+{
+  "hints": {
+    "rate_limit": {
+      "requests_per_second": 1000,
+      "burst_size": 50,
+      "strategy": "token_bucket",
+      "key": "ip"
+    }
+  }
+}
+```
+
+Per-route overrides are supported via `RouteDescriptor.rate_limit`.
+
+### 13.7 Circuit Breaker (v1.1.0)
+
+```json
+{
+  "hints": {
+    "circuit_breaker": {
+      "enabled": true,
+      "error_threshold_percent": 50,
+      "minimum_requests": 20,
+      "open_duration": "30s",
+      "half_open_requests": 5,
+      "error_status_codes": [500, 502, 503, 504]
+    }
+  }
+}
+```
+
+### 13.8 CORS (v1.1.0)
+
+```json
+{
+  "hints": {
+    "cors": {
+      "allowed_origins": ["https://app.example.com"],
+      "allowed_methods": ["GET", "POST", "PUT", "DELETE"],
+      "allowed_headers": ["Authorization", "Content-Type"],
+      "allow_credentials": true,
+      "max_age": 3600
+    }
+  }
+}
+```
+
+### 13.9 Observability (v1.1.0)
+
+```json
+{
+  "hints": {
+    "observability": {
+      "tracing": {
+        "propagation_format": "w3c",
+        "baggage_headers": ["x-request-id", "x-correlation-id"]
+      },
+      "sampling_rate": 0.1,
+      "metric_labels": {"team": "platform", "tier": "critical"}
+    }
+  }
+}
+```
+
+### 13.10 Load Balancing (v1.1.0)
+
+```json
+{
+  "hints": {
+    "load_balancing": {
+      "strategy": "least_connections",
+      "sticky_session": {"enabled": true, "cookie_name": "srv_id", "ttl": "1h"}
+    }
+  }
+}
+```
+
+### 13.11 Graceful Shutdown (v1.1.0)
+
+```json
+{
+  "hints": {
+    "graceful_shutdown": {
+      "drain_timeout": "30s",
+      "shutdown_delay": "5s",
+      "health_failure_threshold": 3
+    }
+  }
+}
+```
+
+### 13.12 Middleware Declarations (v1.1.0)
+
+Service-level default middleware in `routing.middleware`:
+
+```json
+{
+  "routing": {
+    "strategy": "service",
+    "middleware": [
+      {"name": "auth", "order": 1, "required": true},
+      {"name": "rate-limit", "order": 2, "config": {"limit": 100}},
+      {"name": "cors", "order": 3}
+    ]
+  }
+}
+```
+
+Per-route middleware overrides in `RouteDescriptor.middleware`.
+
+### 13.13 API Versioning (v1.1.0)
+
+```json
+{
+  "routing": {
+    "versioning": {
+      "strategy": "url_path",
+      "current_version": "v2",
+      "supported_versions": ["v1", "v2"],
+      "default_version": "v2",
+      "deprecation_policy": {
+        "sunset_date": "2025-12-31",
+        "deprecation_date": "2025-06-01"
+      }
+    }
+  }
+}
+```
+
 ---
 
 ## 14. Registration Flow
@@ -5015,7 +5147,77 @@ func (g *Gateway) handleManifestUpdate(newManifest *SchemaManifest) {
 }
 ```
 
-### 12.3 Zero-Downtime Updates
+### 12.3 Routes Checksum (v1.1.0)
+
+The `Checksum` field hashes schema content, but schema changes (e.g., description updates) may not affect the route table. The `RoutesChecksum` field provides a separate hash specifically for route-affecting fields, enabling gateways to skip unnecessary route remounts.
+
+**Routes Checksum Calculation**:
+
+```go
+func CalculateRoutesChecksum(manifest *SchemaManifest) (string, error) {
+    // Hash covers: routing config + sorted route table entries + endpoints
+    // Changes to schema descriptions or models do NOT change routes checksum
+    // Changes to paths, methods, or mount strategy DO change routes checksum
+}
+```
+
+**Gateway Route Change Detection**:
+
+```go
+func (g *Gateway) handleManifestUpdate(newManifest *SchemaManifest) {
+    cached := g.manifestCache.Get(newManifest.InstanceID)
+    
+    // Fast path: compare RoutesChecksum
+    if cached.RoutesChecksum != "" && 
+       cached.RoutesChecksum == newManifest.RoutesChecksum {
+        // Routes unchanged — update cache but SKIP remounting
+        // This prevents intermittent 404s from unnecessary route swaps
+        g.manifestCache.Set(newManifest)
+        return
+    }
+    
+    // Routes changed — proceed with atomic swap
+    g.atomicRouteSwap(newManifest)
+}
+```
+
+### 12.4 Route Table (v1.1.0)
+
+Services MAY include a pre-computed `RouteTable` in their manifest. This gives gateways immediate knowledge of the route structure without fetching or parsing schemas.
+
+```json
+{
+  "route_table": [
+    {"path": "/users", "methods": ["GET", "POST"], "protocol": "rest"},
+    {"path": "/users/{id}", "methods": ["GET", "PUT", "DELETE"], "protocol": "rest"},
+    {"path": "/graphql", "methods": ["POST", "GET"], "protocol": "graphql"}
+  ],
+  "routes_checksum": "a1b2c3d4..."
+}
+```
+
+Each `RouteDescriptor` supports per-route overrides for timeout, rate limiting, CORS, middleware, and caching.
+
+### 12.5 Atomic Route Swap (v1.1.0)
+
+Gateway implementations SHOULD use an atomic swap pattern to prevent intermittent 404s during route remounting:
+
+```go
+type RouteUpdateHandler interface {
+    PrepareRoutes(routes []RouteDescriptor) error  // Validate new routes
+    CommitRoutes() error                            // Atomic swap
+    RollbackRoutes() error                          // Revert on failure
+}
+```
+
+The flow is: **Prepare** (validate) → **Commit** (atomic swap) → **Rollback** (on failure).
+
+New webhook events support this lifecycle:
+- `routes.changing` — pre-notification before route change
+- `routes.changed` — routes have been swapped
+- `routes.draining` — old routes draining connections
+
+### 12.6 Zero-Downtime Updates
 
 **Blue-Green Schema Deployment**:
 
@@ -5353,6 +5555,105 @@ func (c *CustomConverter) ConvertToRoutes(manifest *SchemaManifest) ([]Route, er
 // Register converter
 gateway.RegisterConverter(SchemaTypeCustom, &CustomConverter{})
 ```
+
+---
+
+## 17. Service Discovery (v1.1.0)
+
+### 17.1 Overview
+
+FARP provides a `ServiceDiscovery` interface with pluggable backends for service registration and discovery. The system supports three modes: registry-based (pull), push-based (reverse), and hybrid.
+
+See [DISCOVERY.md](DISCOVERY.md) for the complete guide.
+
+### 17.2 ServiceDiscovery Interface
+
+```go
+type ServiceDiscovery interface {
+    Discover(ctx context.Context, serviceName string) ([]ServiceInstance, error)
+    Watch(ctx context.Context, serviceName string, handler DiscoveryEventHandler) error
+    Register(ctx context.Context, instance ServiceInstance) error
+    Deregister(ctx context.Context, instanceID string) error
+    ReportHealth(ctx context.Context, instanceID string, status InstanceStatus) error
+    Close() error
+    Health(ctx context.Context) error
+}
+```
+
+### 17.3 Supported Backends
+
+| Backend | Module | Discovery | KV Storage | Watch Mechanism |
+|---------|--------|-----------|------------|-----------------|
+| Consul | `discovery/consul` | Health API | KV API | Blocking queries |
+| etcd | `discovery/etcd` | Lease + Range | KV | gRPC watch |
+| Redis | `discovery/redis` | HSET + EXPIRE | GET/SET | Pub/Sub |
+| Kubernetes | `discovery/kubernetes` | EndpointSlices | N/A | K8s Watch |
+| mDNS | `discovery/mdns` | Browse `_farp._tcp` | N/A | Continuous browse |
+| Push | `discovery/push` | HTTP POST | N/A | SSE/heartbeat |
+
+### 17.4 Push Protocol
+
+Services can push manifests directly to gateways without an external registry:
+
+```
+POST   /_farp/v1/register              — {instance, manifest?}
+  Response: {status, routes_checksum, schemas_applied}
+
+PUT    /_farp/v1/heartbeat/{id}        — {status, routes_checksum?}
+  Response: {status, routes_checksum, schemas_applied}
+
+DELETE /_farp/v1/deregister/{id}       — (no body)
+GET    /_farp/v1/services              — list all
+GET    /_farp/v1/services/{name}       — list by name
+```
+
+Registration: the `manifest` field is optional. If omitted, the gateway
+fetches it from the service's `/_farp/manifest` endpoint (see §17.5).
+The response includes the `routes_checksum` the gateway applied and how
+many schemas it successfully fetched. A `routes_checksum` of `""` or
+`schemas_applied` of `0` means the gateway hasn't fetched the manifest
+yet (e.g. the service HTTP server wasn't ready).
+
+#### 17.4.1 Heartbeat Reconciliation
+
+The heartbeat doubles as a reconciliation mechanism. Each heartbeat MAY
+include the service's expected `routes_checksum` (from its local
+`SchemaManifest.RoutesChecksum`). The gateway MUST respond with the
+`routes_checksum` it currently holds and the number of schemas applied.
+
+If the checksums differ (or the gateway has `schemas_applied: 0`), the
+service SHOULD re-register using `RegisterWithManifest` — including the
+full manifest in the POST body — so the gateway can apply schemas
+without needing to fetch them.
+
+The gateway SHOULD also attempt to re-fetch the manifest from the
+service on heartbeat when its own checksum is empty or stale.
+
+This lazy reconciliation resolves the startup timing race: the initial
+registration may fail to fetch the manifest (service not ready), but the
+first successful heartbeat (typically within one health interval, default
+10s) triggers convergence.
+
+`routes_checksum` is optional in both request and response for backwards
+compatibility — clients and gateways that omit it continue to work.
+
+### 17.5 FARP HTTP Endpoints
+
+Services expose these endpoints via `FARPHandler`:
+
+```
+GET /_farp/manifest           — SchemaManifest JSON
+GET /_farp/health             — {status: "healthy"} or 503
+GET /_farp/schemas/{type}     — Schema by type (openapi, graphql, etc.)
+```
+
+### 17.6 Auto-Lifecycle
+
+`ServiceNode` manages the full service lifecycle:
+1. Generate schemas → 2. Build manifest → 3. Serve HTTP endpoints → 4. Register in discovery → 5. Health loop → 6. Graceful deregister
+
+`GatewayNode` manages the full gateway lifecycle:
+1. Watch discovery → 2. Fetch manifests → 3. Register in SchemaRegistry → 4. Convert to routes → 5. Notify route changes → 6. Evict removed instances
 
 ---
 

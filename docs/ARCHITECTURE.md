@@ -6,18 +6,18 @@
 
 FARP is a **protocol specification library**, NOT a complete gateway or service framework. This document clarifies what FARP provides versus what implementers (services and gateways) must build.
 
-### Responsibility Matrix
+### Responsibility Matrix (v1.1.0)
 
 | Concern | FARP Library | Service Implementation | Gateway Implementation |
 |---------|--------------|------------------------|------------------------|
 | **Data Structures** | ✅ Defines types | Uses types | Uses types |
 | **Schema Generation** | ✅ Providers | Calls providers | - |
 | **Schema Merging** | ✅ Merge logic | - | Calls merge logic |
-| **HTTP Endpoints** | ❌ Examples only | ✅ **Must implement** | ✅ **Must implement** |
-| **Service Discovery** | ❌ Interface only | ✅ **Must integrate** | ✅ **Must integrate** |
-| **Registry Backend** | ❌ Interface only | ✅ **Must choose/config** | ✅ **Must choose/config** |
-| **Route Configuration** | ❌ Examples only | - | ✅ **Must implement** |
-| **Health Monitoring** | ❌ Not provided | ✅ **Must expose** | ✅ **Must poll** |
+| **HTTP Endpoints** | ✅ `FARPHandler` | Mounts handler on router | - |
+| **Service Discovery** | ✅ 6 backends + push | Uses `ServiceNode` | Uses `GatewayNode` |
+| **Registry Backend** | ✅ Memory + KV via backends | Auto via `ServiceNode` | Auto via `GatewayNode` |
+| **Route Configuration** | ✅ Schema-to-route conversion | - | Applies routes from callback |
+| **Health Monitoring** | ✅ Auto health loop | Auto via `ServiceNode` | Auto via `GatewayNode` |
 | **Webhook Transport** | ❌ Types only | ✅ **Must implement** | ✅ **Must implement** |
 
 ### What FARP Provides (✅)
@@ -42,20 +42,45 @@ FARP is a **protocol specification library**, NOT a complete gateway or service 
    - Checksum calculation and verification
    - Version compatibility checks
 
-5. **Storage Abstractions** (`registry.go`)
-   - Interface definitions only
-   - No backend implementations (except `memory` for testing)
+5. **Storage Abstractions** (`registry.go`, `storage.go`)
+   - `SchemaRegistry` and `StorageBackend` interfaces
+   - In-memory implementation for testing (`registry/memory`)
+   - KV-based backends via discovery backends (Consul, etcd, Redis)
+
+6. **Service Discovery** (`discovery/*`)
+   - `ServiceDiscovery` interface with 6 backend implementations
+   - `ServiceNode` — auto-lifecycle for services (register, health, schemas)
+   - `GatewayNode` — auto-lifecycle for gateways (discover, fetch, routes)
+   - `FARPHandler` — ready-to-mount HTTP handler for FARP endpoints
+   - Push-based discovery — no external registry needed
+
+7. **Gateway Client** (`gateway/*`)
+   - Schema-to-route conversion (OpenAPI, AsyncAPI, GraphQL)
+   - Route hash comparison to prevent unnecessary remounts
+   - Atomic route swap via `RouteUpdateHandler` interface
 
 ### What Service Frameworks Must Implement (Services using FARP)
 
-1. **HTTP Server Endpoints**
-   - `GET /_farp/manifest` - Return `SchemaManifest` JSON
-   - `GET /openapi.json` - Return OpenAPI schema (if using HTTP location)
-   - `GET /asyncapi.json` - Return AsyncAPI schema (if using HTTP location)
-   - `GET /health` - Health check endpoint
-   - `GET /metrics` - Metrics endpoint
+With the discovery system, most integration is automatic via `ServiceNode`:
 
-2. **Discovery Backend Integration**
+```go
+node, _ := discovery.NewServiceNode(discovery.ServiceNodeConfig{
+    ServiceName: "user-service",
+    Address:     "10.0.0.5:8080",
+    Discovery:   consulBackend,
+})
+node.Start(ctx)
+http.Handle("/_farp/", node.HTTPHandler()) // mount on your router
+```
+
+For manual integration (without `ServiceNode`):
+
+1. **HTTP Server Endpoints** — or use `FARPHandler`
+   - `GET /_farp/manifest` - Return `SchemaManifest` JSON
+   - `GET /_farp/health` - Health check endpoint
+   - `GET /_farp/schemas/{type}` - Return schema by type
+
+2. **Discovery Backend Integration** — or use `ServiceNode`
    - Register service with Consul/etcd/K8s/mDNS
    - Store FARP manifest in backend metadata
    - Handle TTL/heartbeats

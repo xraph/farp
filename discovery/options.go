@@ -51,6 +51,12 @@ type ServiceNodeConfig struct {
 	MountStrategy farp.MountStrategy
 	BasePath      string
 
+	// Routes provides route information for OpenAPI schema generation.
+	// Can be []farp.RouteDescriptor, map[string]any (OpenAPI paths), or any
+	// type that the configured schema provider understands.
+	// If nil, the provider's Generate() may fail or produce empty paths.
+	Routes any
+
 	// Service hints (flows into manifest)
 	Hints *farp.ServiceHints
 

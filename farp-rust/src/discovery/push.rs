@@ -17,7 +17,7 @@ use tokio::sync::RwLock;
 ///
 /// Implements ServiceDiscovery by sending HTTP requests to a gateway URL.
 pub struct PushDiscovery {
-    gateway_url: String,
+    _gateway_url: String,
 }
 
 impl PushDiscovery {
@@ -28,7 +28,7 @@ impl PushDiscovery {
             url.pop();
         }
 
-        Self { gateway_url: url }
+        Self { _gateway_url: url }
     }
 }
 
@@ -81,7 +81,7 @@ impl ServiceDiscovery for PushDiscovery {
 /// Also implements ServiceDiscovery so GatewayNode can use it.
 pub struct PushHandler {
     instances: Arc<RwLock<HashMap<String, PushEntry>>>,
-    heartbeat_timeout_secs: u64,
+    _heartbeat_timeout_secs: u64,
 }
 
 struct PushEntry {
@@ -94,7 +94,7 @@ impl PushHandler {
     pub fn new(heartbeat_timeout_secs: u64) -> Self {
         Self {
             instances: Arc::new(RwLock::new(HashMap::new())),
-            heartbeat_timeout_secs,
+            _heartbeat_timeout_secs: heartbeat_timeout_secs,
         }
     }
 }
