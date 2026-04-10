@@ -447,13 +447,13 @@ func applyMountStrategy(path string, manifest *farp.SchemaManifest) string {
 		return path
 
 	case farp.MountStrategyInstance:
-		return fmt.Sprintf("/%s%s", manifest.InstanceID, path)
+		return fmt.Sprintf("/%s%s", strings.ToLower(manifest.InstanceID), path)
 
 	case farp.MountStrategyService:
-		return fmt.Sprintf("/%s%s", manifest.ServiceName, path)
+		return fmt.Sprintf("/%s%s", strings.ToLower(manifest.ServiceName), path)
 
 	case farp.MountStrategyVersioned:
-		return fmt.Sprintf("/%s/%s%s", manifest.ServiceName, manifest.ServiceVersion, path)
+		return fmt.Sprintf("/%s/%s%s", strings.ToLower(manifest.ServiceName), strings.ToLower(manifest.ServiceVersion), path)
 
 	case farp.MountStrategyCustom:
 		if routing.BasePath != "" {

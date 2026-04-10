@@ -22,7 +22,7 @@ func NewManifest(serviceName, serviceVersion, instanceID string) *SchemaManifest
 		Capabilities:   []string{},
 		Endpoints:      SchemaEndpoints{},
 		Routing: RoutingConfig{
-			Strategy: MountStrategyInstance, // Default strategy
+			Strategy: MountStrategyService, // Default strategy
 		},
 		Auth:      AuthConfig{},
 		Webhook:   WebhookConfig{},

@@ -275,12 +275,12 @@ pub enum MountStrategy {
     /// Merge service routes to gateway root (no prefix)
     #[serde(rename = "root")]
     Root,
-    /// Mount under /instance-id/* (default)
+    /// Mount under /instance-id/*
     #[serde(rename = "instance")]
-    #[default]
     Instance,
-    /// Mount under /service-name/*
+    /// Mount under /service-name/* (default)
     #[serde(rename = "service")]
+    #[default]
     Service,
     /// Mount under /service-name/version/*
     #[serde(rename = "versioned")]

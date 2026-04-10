@@ -423,10 +423,10 @@ const (
 	// MountStrategyRoot merges service routes to gateway root (no prefix).
 	MountStrategyRoot MountStrategy = "root"
 
-	// MountStrategyInstance mounts under /instance-id/* (default).
+	// MountStrategyInstance mounts under /instance-id/*.
 	MountStrategyInstance MountStrategy = "instance"
 
-	// MountStrategyService mounts under /service-name/*.
+	// MountStrategyService mounts under /service-name/* (default).
 	MountStrategyService MountStrategy = "service"
 
 	// MountStrategyVersioned mounts under /service-name/version/*.

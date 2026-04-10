@@ -57,16 +57,16 @@ func TestMerger_Merge_MultipleServices(t *testing.T) {
 	}
 
 	// Check that paths from both services are present
-	// Default routing strategy is MountStrategyInstance
+	// Default routing strategy is MountStrategyService
 	foundUsers, foundOrders := false, false
 
 	for path := range result.Spec.Paths {
-		// Paths are prefixed with instance ID by default
-		if path == "/instance-1/users" {
+		// Paths are prefixed with service name by default
+		if path == "/user-service/users" {
 			foundUsers = true
 		}
 
-		if path == "/instance-2/orders" {
+		if path == "/order-service/orders" {
 			foundOrders = true
 		}
 	}

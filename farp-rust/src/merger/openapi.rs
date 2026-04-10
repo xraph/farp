@@ -270,12 +270,12 @@ fn apply_mount_strategy(path: &str, manifest: &SchemaManifest) -> String {
 
     match routing.strategy {
         MountStrategy::Root => path.to_string(),
-        MountStrategy::Instance => format!("/{}{}", manifest.instance_id, path),
-        MountStrategy::Service => format!("/{}{}", manifest.service_name, path),
+        MountStrategy::Instance => format!("/{}{}", manifest.instance_id.to_lowercase(), path),
+        MountStrategy::Service => format!("/{}{}", manifest.service_name.to_lowercase(), path),
         MountStrategy::Versioned => {
             format!(
                 "/{}/{}{}",
-                manifest.service_name, manifest.service_version, path
+                manifest.service_name.to_lowercase(), manifest.service_version.to_lowercase(), path
             )
         }
         MountStrategy::Custom => {

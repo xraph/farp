@@ -76,7 +76,7 @@ func (c *ServiceNodeConfig) setDefaults() {
 	}
 
 	if c.MountStrategy == "" {
-		c.MountStrategy = farp.MountStrategyInstance
+		c.MountStrategy = farp.MountStrategyService
 	}
 
 	if c.HTTPClient == nil {
