@@ -40,8 +40,10 @@ pub fn new_manifest(
         auth: None,
         webhook: None,
         hints: None,
+        route_table: Vec::new(),
         updated_at: chrono::Utc::now().timestamp(),
         checksum: String::new(),
+        routes_checksum: None,
     }
 }
 
@@ -64,6 +66,14 @@ impl SchemaManifest {
         let checksum = calculate_manifest_checksum(self)?;
         self.checksum = checksum;
         self.updated_at = chrono::Utc::now().timestamp();
+        Ok(())
+    }
+
+    /// Updates the routes checksum based on the route table and routing config.
+    /// Services SHOULD call this after building their route table.
+    pub fn update_routes_checksum(&mut self) -> Result<()> {
+        let checksum = calculate_routes_checksum(self)?;
+        self.routes_checksum = Some(checksum);
         Ok(())
     }
 
@@ -268,6 +278,10 @@ pub struct ManifestDiff {
     pub capabilities_removed: Vec<String>,
     /// Whether endpoints changed
     pub endpoints_changed: bool,
+    /// Whether routing configuration changed
+    pub routing_changed: bool,
+    /// Whether the routes checksum changed
+    pub routes_checksum_changed: bool,
 }
 
 /// Represents a changed schema
@@ -287,6 +301,17 @@ impl ManifestDiff {
             || !self.capabilities_added.is_empty()
             || !self.capabilities_removed.is_empty()
             || self.endpoints_changed
+            || self.routing_changed
+            || self.routes_checksum_changed
+    }
+
+    /// Returns true only if route-affecting changes were detected.
+    /// Gateway implementations SHOULD use this to decide whether to remount routes.
+    pub fn has_route_changes(&self) -> bool {
+        !self.schemas_added.is_empty()
+            || !self.schemas_removed.is_empty()
+            || self.routing_changed
+            || self.routes_checksum_changed
     }
 }
 
@@ -299,6 +324,8 @@ pub fn diff_manifests(old: &SchemaManifest, new: &SchemaManifest) -> ManifestDif
         capabilities_added: Vec::new(),
         capabilities_removed: Vec::new(),
         endpoints_changed: false,
+        routing_changed: false,
+        routes_checksum_changed: false,
     };
 
     // Build maps for easier comparison
@@ -352,7 +379,82 @@ pub fn diff_manifests(old: &SchemaManifest, new: &SchemaManifest) -> ManifestDif
         diff.endpoints_changed = true;
     }
 
+    // Compare routing configuration
+    if old.routing != new.routing {
+        diff.routing_changed = true;
+    }
+
+    // Compare routes checksum
+    if old.routes_checksum != new.routes_checksum {
+        diff.routes_checksum_changed = true;
+    }
+
     diff
+}
+
+/// Calculates a SHA256 hash of the route-affecting fields in a manifest.
+/// This hash is used by gateways to detect whether route remounting is needed.
+pub fn calculate_routes_checksum(manifest: &SchemaManifest) -> Result<String> {
+    #[derive(serde::Serialize)]
+    struct RouteEntry {
+        path: String,
+        methods: Vec<String>,
+        protocol: String,
+    }
+
+    #[derive(serde::Serialize)]
+    struct RouteCanonical {
+        strategy: String,
+        base_path: String,
+        subdomain: String,
+        rewrite: Vec<PathRewrite>,
+        strip_prefix: bool,
+        routes: Vec<RouteEntry>,
+        health: String,
+        graphql: String,
+        openapi: String,
+        asyncapi: String,
+    }
+
+    let mut sorted_routes: Vec<RouteEntry> = manifest
+        .route_table
+        .iter()
+        .map(|r| {
+            let mut methods = r.methods.clone();
+            methods.sort();
+            RouteEntry {
+                path: r.path.clone(),
+                methods,
+                protocol: r.protocol.clone(),
+            }
+        })
+        .collect();
+
+    sorted_routes.sort_by(|a, b| {
+        a.path.cmp(&b.path).then_with(|| a.protocol.cmp(&b.protocol))
+    });
+
+    let canonical = RouteCanonical {
+        strategy: format!("{}", manifest.routing.strategy),
+        base_path: manifest.routing.base_path.clone().unwrap_or_default(),
+        subdomain: manifest.routing.subdomain.clone().unwrap_or_default(),
+        rewrite: manifest.routing.rewrite.clone(),
+        strip_prefix: manifest.routing.strip_prefix,
+        routes: sorted_routes,
+        health: manifest.endpoints.health.clone(),
+        graphql: manifest.endpoints.graphql.clone().unwrap_or_default(),
+        openapi: manifest.endpoints.openapi.clone().unwrap_or_default(),
+        asyncapi: manifest.endpoints.asyncapi.clone().unwrap_or_default(),
+    };
+
+    let data = serde_json::to_vec(&canonical)
+        .map_err(Error::Serialization)?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(&data);
+    let result = hasher.finalize();
+
+    Ok(hex::encode(result))
 }
 
 #[cfg(test)]

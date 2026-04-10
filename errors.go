@@ -45,6 +45,24 @@ var (
 
 	// ErrValidationFailed is returned when schema validation fails.
 	ErrValidationFailed = errors.New("schema validation failed")
+
+	// ErrInstanceNotFound is returned when a service instance is not found.
+	ErrInstanceNotFound = errors.New("service instance not found")
+
+	// ErrRegistrationFailed is returned when service registration fails.
+	ErrRegistrationFailed = errors.New("service registration failed")
+
+	// ErrDeregistrationFailed is returned when service deregistration fails.
+	ErrDeregistrationFailed = errors.New("service deregistration failed")
+
+	// ErrHealthCheckFailed is returned when a health check report fails.
+	ErrHealthCheckFailed = errors.New("health check reporting failed")
+
+	// ErrDiscoveryUnavailable is returned when the discovery backend is unreachable.
+	ErrDiscoveryUnavailable = errors.New("discovery backend unavailable")
+
+	// ErrManifestFetchFailed is returned when fetching a manifest from a service fails.
+	ErrManifestFetchFailed = errors.New("manifest fetch failed")
 )
 
 // ManifestError represents a manifest-specific error.

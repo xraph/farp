@@ -5,16 +5,20 @@ import "fmt"
 // Protocol version constants
 const (
 	// ProtocolVersion is the current FARP protocol version (semver)
-	ProtocolVersion = "1.0.2"
+	// v1.1.0: Added route table, routes checksum, atomic route swap,
+	// rate limiting, circuit breaker, CORS, observability, caching,
+	// load balancing, API versioning, middleware declarations,
+	// and graceful shutdown configuration.
+	ProtocolVersion = "1.1.0"
 
 	// ProtocolMajor is the major version
 	ProtocolMajor = 1
 
 	// ProtocolMinor is the minor version
-	ProtocolMinor = 0
+	ProtocolMinor = 1
 
 	// ProtocolPatch is the patch version
-	ProtocolPatch = 2
+	ProtocolPatch = 0
 )
 
 // VersionInfo provides version information about the protocol

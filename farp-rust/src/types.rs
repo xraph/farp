@@ -481,6 +481,15 @@ pub enum WebhookEventType {
     /// Traffic shift event
     #[serde(rename = "traffic.shift")]
     TrafficShift,
+    /// Routes are about to change (pre-notification)
+    #[serde(rename = "routes.changing")]
+    RoutesChanging,
+    /// Routes have been changed
+    #[serde(rename = "routes.changed")]
+    RoutesChanged,
+    /// Old routes are draining connections
+    #[serde(rename = "routes.draining")]
+    RoutesDraining,
 }
 
 impl std::fmt::Display for WebhookEventType {
@@ -495,6 +504,9 @@ impl std::fmt::Display for WebhookEventType {
             WebhookEventType::CircuitBreakerClosed => "circuit.breaker.closed",
             WebhookEventType::ConfigUpdated => "config.updated",
             WebhookEventType::TrafficShift => "traffic.shift",
+            WebhookEventType::RoutesChanging => "routes.changing",
+            WebhookEventType::RoutesChanged => "routes.changed",
+            WebhookEventType::RoutesDraining => "routes.draining",
         };
         write!(f, "{s}")
     }
@@ -710,10 +722,17 @@ pub struct SchemaManifest {
     /// Service operational hints
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hints: Option<ServiceHints>,
+    /// Pre-computed route table
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub route_table: Vec<RouteDescriptor>,
     /// Timestamp of last update (Unix timestamp)
     pub updated_at: i64,
     /// SHA256 checksum of all schemas
     pub checksum: String,
+    /// SHA256 hash of the computed route table.
+    /// Gateways SHOULD compare this before remounting routes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routes_checksum: Option<String>,
 }
 
 /// Schema descriptor describing a single API schema/contract
@@ -760,6 +779,45 @@ pub struct SchemaLocation {
     pub headers: Option<HashMap<String, String>>,
 }
 
+/// Describes a single route that the service exposes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RouteDescriptor {
+    /// Path pattern (e.g., "/users/{id}")
+    pub path: String,
+    /// HTTP methods (e.g., ["GET", "POST"])
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub methods: Vec<String>,
+    /// Protocol type (rest, grpc, graphql, websocket)
+    pub protocol: String,
+    /// Operation identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    /// Per-route timeout override
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<String>,
+    /// Per-route rate limit
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit: Option<RateLimitConfig>,
+    /// Per-route CORS override
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cors: Option<CORSConfig>,
+    /// Per-route middleware
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub middleware: Vec<MiddlewareDeclaration>,
+    /// Per-route cache config
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<CacheConfig>,
+    /// Per-route metadata
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
+    /// Whether this route is public
+    #[serde(default)]
+    pub public: bool,
+    /// Whether this route is deprecated
+    #[serde(default)]
+    pub deprecated: bool,
+}
+
 /// Schema endpoints for introspection
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SchemaEndpoints {
@@ -780,6 +838,12 @@ pub struct SchemaEndpoints {
     /// GraphQL introspection endpoint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub graphql: Option<String>,
+    /// Documentation URL
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<String>,
+    /// Changelog URL
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changelog: Option<String>,
 }
 
 /// Instance metadata
@@ -832,7 +896,7 @@ pub struct DeploymentMetadata {
 }
 
 /// Routing configuration
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct RoutingConfig {
     /// Mounting strategy
     #[serde(default = "default_mount_strategy")]
@@ -855,6 +919,12 @@ pub struct RoutingConfig {
     /// Tags for route grouping
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Default middleware for all routes
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub middleware: Vec<MiddlewareDeclaration>,
+    /// API versioning strategy
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub versioning: Option<APIVersioningConfig>,
 }
 
 fn default_mount_strategy() -> MountStrategy {
@@ -1015,6 +1085,18 @@ pub struct RetryConfig {
     pub max_delay: String,
     /// Backoff multiplier
     pub multiplier: f64,
+    /// Retryable HTTP status codes
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retryable_status_codes: Vec<i32>,
+    /// Retryable HTTP methods
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retryable_methods: Vec<String>,
+    /// Retry on connection errors
+    #[serde(default)]
+    pub retry_on_connection_error: bool,
+    /// Per-attempt timeout
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub per_attempt_timeout: Option<String>,
 }
 
 /// Schema compatibility metadata
@@ -1086,6 +1168,33 @@ pub struct ServiceHints {
     /// Service dependencies
     #[serde(default)]
     pub dependencies: Vec<ServiceDependency>,
+    /// Rate limiting configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit: Option<RateLimitConfig>,
+    /// Circuit breaker configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub circuit_breaker: Option<CircuitBreakerConfig>,
+    /// CORS configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cors: Option<CORSConfig>,
+    /// Retry policy
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_policy: Option<RetryConfig>,
+    /// Observability configuration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observability: Option<ObservabilityConfig>,
+    /// Graceful shutdown config
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graceful_shutdown: Option<GracefulShutdownConfig>,
+    /// Response caching
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<CacheConfig>,
+    /// Load balancing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub load_balancing: Option<LoadBalancingConfig>,
+    /// Request/response transformations
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transformations: Option<TransformationConfig>,
 }
 
 /// Latency profile
@@ -1418,6 +1527,277 @@ pub struct OpenAPIServer {
     pub variables: Option<HashMap<String, ServerVariable>>,
 }
 
+// =============================================================================
+// Rate Limiting Configuration
+// =============================================================================
+
+/// Rate limiting configuration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RateLimitConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requests_per_second: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub burst_size: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strategy: Option<RateLimitStrategy>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<RateLimitKey>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_code: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_headers: Option<HashMap<String, String>>,
+}
+
+/// Rate limiting algorithm
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RateLimitStrategy {
+    FixedWindow,
+    SlidingWindow,
+    TokenBucket,
+    LeakyBucket,
+}
+
+/// Rate limit key dimension
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RateLimitKey {
+    Ip,
+    User,
+    ApiKey,
+    Global,
+}
+
+// =============================================================================
+// Circuit Breaker Configuration
+// =============================================================================
+
+/// Circuit breaker configuration
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CircuitBreakerConfig {
+    pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_threshold_percent: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minimum_requests: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_duration: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub half_open_requests: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window_size: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub error_status_codes: Vec<i32>,
+}
+
+// =============================================================================
+// CORS Configuration
+// =============================================================================
+
+/// Cross-Origin Resource Sharing configuration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CORSConfig {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_origins: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_methods: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowed_headers: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exposed_headers: Vec<String>,
+    #[serde(default)]
+    pub allow_credentials: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_age: Option<i32>,
+}
+
+// =============================================================================
+// Observability Configuration
+// =============================================================================
+
+/// Observability configuration hints
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObservabilityConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracing: Option<TracingConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metric_labels: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_level: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sampling_rate: Option<f64>,
+}
+
+/// Distributed tracing configuration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TracingConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub propagation_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace_id_header: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub baggage_headers: Vec<String>,
+}
+
+// =============================================================================
+// Graceful Shutdown Configuration
+// =============================================================================
+
+/// Graceful shutdown configuration hints
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GracefulShutdownConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub drain_timeout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shutdown_delay: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub health_failure_threshold: Option<i32>,
+}
+
+// =============================================================================
+// Middleware Declarations
+// =============================================================================
+
+/// Middleware declaration for gateway routes
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MiddlewareDeclaration {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config: Option<HashMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub required: bool,
+}
+
+// =============================================================================
+// Response Caching Configuration
+// =============================================================================
+
+/// Response caching configuration hints
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CacheConfig {
+    pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vary_headers: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_template: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stale_while_revalidate: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cacheable_statuses: Vec<i32>,
+}
+
+// =============================================================================
+// Load Balancing Configuration
+// =============================================================================
+
+/// Load balancing configuration hints
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoadBalancingConfig {
+    pub strategy: LoadBalancingStrategy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sticky_session: Option<StickySessionConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub health_check: Option<LBHealthCheckConfig>,
+}
+
+/// Load balancing algorithm
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoadBalancingStrategy {
+    RoundRobin,
+    LeastConnections,
+    WeightedRoundRobin,
+    IpHash,
+    Random,
+    ConsistentHash,
+}
+
+/// Sticky session configuration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StickySessionConfig {
+    pub enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cookie_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl: Option<String>,
+}
+
+/// Load balancer health check configuration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LBHealthCheckConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interval: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unhealthy_threshold: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub healthy_threshold: Option<i32>,
+}
+
+// =============================================================================
+// API Versioning Configuration
+// =============================================================================
+
+/// API versioning strategy configuration
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct APIVersioningConfig {
+    pub strategy: VersioningStrategy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supported_versions: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub header_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query_param: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecation_policy: Option<VersionDeprecationPolicy>,
+}
+
+/// API versioning strategy
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VersioningStrategy {
+    UrlPath,
+    Header,
+    QueryParam,
+}
+
+/// Version deprecation policy
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionDeprecationPolicy {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sunset_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deprecation_date: Option<String>,
+}
+
+// =============================================================================
+// Request/Response Transformation Hints
+// =============================================================================
+
+/// Request/response transformation hints
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TransformationConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_headers: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_headers: Option<HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remove_request_headers: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remove_response_headers: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1470,8 +1850,10 @@ mod tests {
             auth: None,
             webhook: None,
             hints: None,
+            route_table: vec![],
             updated_at: 1234567890,
             checksum: "abc123".to_string(),
+            routes_checksum: None,
         };
 
         let json = serde_json::to_string(&manifest).unwrap();

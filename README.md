@@ -21,89 +21,76 @@ FARP (Forge API Gateway Registration Protocol) is a **protocol specification lib
 - **Protocol Specification** - Defines the SchemaManifest format and data structures
 - **Schema Generation Library** - Providers to generate OpenAPI, AsyncAPI, gRPC, GraphQL, oRPC, Thrift, and Avro schemas from code
 - **Schema Merging Utilities** - Tools to compose multiple service schemas into unified API documentation
-- **Storage Abstractions** - Interfaces for registry backends (not implementations)
+- **Service Discovery** - Pluggable discovery with Consul, etcd, Kubernetes, Redis, mDNS, and push-based backends
+- **Auto-Registration** - `ServiceNode` and `GatewayNode` manage the full FARP lifecycle automatically
 - **Validation & Serialization** - Ensure manifests are spec-compliant
 
 ### What FARP Is NOT
 
-- ❌ **Not an API Gateway** - No routing, rate limiting, or traffic management
-- ❌ **Not a Service Framework** - Services must implement their own HTTP endpoints
-- ❌ **Not Service Discovery** - Extends existing discovery systems (Consul, etcd, K8s, mDNS)
-- ❌ **Not a Backend Implementation** - Provides interfaces, not Consul/etcd/K8s clients
-
-**Think of FARP like `protobuf` or `openapi-generator`** - it defines the format and provides tooling, but you implement the transport layer.
+- ❌ **Not an API Gateway** - No routing, rate limiting, or traffic management (but provides hints for them)
+- ❌ **Not a Service Framework** - Services mount FARP HTTP handlers on their own router
 
 ## Key Features
 
+- **Pluggable Service Discovery**: Consul, etcd, Kubernetes, Redis, mDNS, and push-based — or bring your own
+- **Auto-Lifecycle Management**: `ServiceNode` and `GatewayNode` handle registration, health, schemas, and routes automatically
+- **Push-Based Discovery**: Services push manifests directly to gateways — zero infrastructure needed
 - **Schema-Aware Service Discovery**: Services register with complete API contracts
 - **Multi-Protocol Support**: OpenAPI, AsyncAPI, gRPC, GraphQL, oRPC, Thrift, Avro, and extensible for future protocols
-- **Production-Ready Providers**: Built-in schema providers for all major API protocols including RPC and data serialization
-- **Dynamic Gateway Configuration**: API gateways auto-configure routes based on registered schemas
-- **Health & Telemetry Integration**: Built-in health checks and metrics endpoints
-- **Backend Agnostic**: Works with Consul, etcd, Kubernetes, mDNS/Bonjour, Eureka, and custom backends
-- **Transport Agnostic**: Schema metadata propagates through KV stores, DNS TXT records, ConfigMaps, and more
-- **Push & Pull Models**: Flexible schema distribution strategies
-- **Zero-Downtime Updates**: Schema versioning and checksum validation
-- **Zero Configuration**: Works with mDNS/Bonjour for local network discovery without infrastructure
+- **Zero-Downtime Route Updates**: Routes checksum + atomic swap prevents intermittent 404s
+- **Operational Hints**: Rate limiting, circuit breaker, CORS, caching, load balancing, observability — all declarative
+- **FARP HTTP Handler**: Ready-to-mount handler serves `/_farp/manifest`, health, and schema endpoints
+- **Dual Language**: Full Go and Rust implementations with consistent APIs
+- **Backend Agnostic Storage**: Works with Consul KV, etcd, Redis, or in-memory for schema storage
+- **Zero Configuration**: Works with mDNS/Bonjour or push mode for local development without infrastructure
 
 ## Architectural Boundaries
 
-FARP follows a clear separation of concerns between protocol, service, and gateway layers:
+FARP provides the protocol, schema tooling, and service discovery — you provide the HTTP router and gateway proxy.
 
 ### FARP Library Provides
 
 | Component | Description | Package |
 |-----------|-------------|---------|
-| **Type Definitions** | `SchemaManifest`, `SchemaDescriptor`, routing/auth configs | `types.go` |
+| **Type Definitions** | `SchemaManifest`, `SchemaDescriptor`, routing/auth/hints | `types.go` |
 | **Schema Providers** | Generate schemas from code | `providers/*` |
-| **Registry Interface** | Storage abstraction (not implementations) | `registry.go` |
+| **Service Discovery** | Pluggable backends + auto-lifecycle | `discovery/*` |
+| **FARP HTTP Handler** | Serves manifest, health, and schema endpoints | `discovery/handler.go` |
+| **Gateway Client** | Schema-to-route conversion with atomic swap | `gateway/*` |
+| **Registry + Storage** | Manifest storage and caching | `registry.go`, `storage.go` |
 | **Merging Logic** | Compose multiple schemas into unified docs | `merger/*` |
 | **Validation** | Ensure manifests are spec-compliant | `manifest.go` |
 
-### Service Framework Responsibilities
+### What You Implement
 
-Services (e.g., **Forge** framework) must implement:
-
-- **HTTP Endpoints** - Serve `/_farp/manifest`, `/openapi.json`, etc.
-- **Registration Logic** - Store manifests in discovery backend (Consul, etcd, mDNS)
-- **Schema Generation** - Use FARP providers to generate schemas from routes
-- **Webhook Receivers** - (Optional) Accept events from gateway
-
-**Example**: Forge framework uses FARP providers to generate schemas and exposes them via HTTP handlers.
-
-### Gateway Implementation Responsibilities
-
-Gateways (e.g., **Kong**, **Traefik**, **octopus-gateway**) must implement:
-
-- **Service Discovery** - Watch Consul/etcd/K8s for service registrations
-- **HTTP Client** - Fetch schemas from service endpoints
-- **Route Configuration** - Convert FARP manifests to gateway-specific routes
-- **Health Monitoring** - Poll service health endpoints
-- **Webhook Dispatching** - (Optional) Send events to services
-
-**Example**: octopus-gateway watches mDNS for services, fetches their FARP manifests, and configures routes.
-
-### Reference Implementation
-
-The `gateway/client.go` in this repository is a **reference helper/example**, not production code. It demonstrates:
-
-- How to watch for manifest changes
-- How to convert schemas to routes
-- How to cache schemas
-
-Real gateways should implement their own logic tailored to their architecture.
+| Concern | What You Do |
+|---------|-------------|
+| **HTTP Router** | Mount `node.HTTPHandler()` on your router (e.g., chi, gin, echo) |
+| **Gateway Proxy** | Apply routes from `OnRoutesChanged` to your proxy (e.g., reverse proxy, Envoy) |
+| **Schema Providers** | (Optional) Custom providers for your framework's routes |
+| **Webhooks** | (Optional) Implement webhook receivers for gateway events |
 
 ## Repository Structure
 
 ```text
 farp/
 ├── README.md                    # This file - project overview
-├── PROVIDERS_IMPLEMENTATION.md  # Schema providers implementation guide
 ├── docs/
 │   ├── SPECIFICATION.md         # Complete protocol specification
 │   ├── ARCHITECTURE.md          # Architecture and design decisions
-│   ├── IMPLEMENTATION_GUIDE.md  # Guide for implementers
-│   └── GATEWAY_INTEGRATION.md   # Gateway integration guide
+│   ├── DISCOVERY.md             # Service discovery guide
+│   └── IMPLEMENTATION_RESPONSIBILITIES.md
+├── discovery/                   # Service discovery system
+│   ├── discovery.go             # ServiceDiscovery interface, types
+│   ├── node.go                  # ServiceNode + GatewayNode (auto-lifecycle)
+│   ├── handler.go               # FARP HTTP handler + ManifestFetcher
+│   ├── push.go                  # Push-based discovery (service→gateway)
+│   ├── push_handler.go          # Push handler (gateway-side receiver)
+│   ├── consul/                  # Consul backend
+│   ├── etcd/                    # etcd backend
+│   ├── kubernetes/              # Kubernetes backend
+│   ├── redis/                   # Redis backend
+│   └── mdns/                    # mDNS/Bonjour backend
 ├── providers/                   # Schema provider implementations
 │   ├── openapi/                 # OpenAPI 3.x provider
 │   ├── asyncapi/                # AsyncAPI 2.x/3.x provider
@@ -112,16 +99,15 @@ farp/
 │   ├── orpc/                    # oRPC (OpenAPI-based RPC) provider
 │   ├── thrift/                  # Apache Thrift IDL provider
 │   └── avro/                    # Apache Avro schema provider
-├── examples/
-│   ├── basic/                   # Basic usage examples
-│   ├── multi-protocol/          # Multi-protocol service example
-│   └── gateway-client/          # Reference gateway client
+├── gateway/                     # Reference gateway client
+├── merger/                      # Multi-schema composition
 ├── types.go                     # Core protocol types
-├── manifest.go                  # Schema manifest types
+├── manifest.go                  # Schema manifest operations
 ├── provider.go                  # Schema provider interface
 ├── registry.go                  # Schema registry interface
 ├── storage.go                   # Storage abstraction
-└── version.go                   # Protocol version constants
+├── version.go                   # Protocol version (1.1.0)
+└── farp-rust/                   # Rust implementation
 ```
 
 ## Quick Start
@@ -214,19 +200,69 @@ manifest := &farp.SchemaManifest{
 registry.RegisterManifest(ctx, manifest)
 ```
 
-### Gateway Integration
+### Service Discovery (Recommended)
+
+The discovery system handles registration, health, and route management automatically:
+
+```go
+import (
+    "github.com/xraph/farp/discovery"
+    "github.com/xraph/farp/discovery/consul"
+)
+
+// === Service side ===
+disc, _ := consul.New(consul.Config{Address: "consul:8500"})
+node, _ := discovery.NewServiceNode(discovery.ServiceNodeConfig{
+    ServiceName: "user-service",
+    Address:     "10.0.0.5:8080",
+    Discovery:   disc,
+})
+node.Start(ctx)
+defer node.Stop(ctx)
+http.Handle("/_farp/", node.HTTPHandler())
+
+// === Gateway side ===
+gw, _ := discovery.NewGatewayNode(discovery.GatewayNodeConfig{
+    Discovery: disc,
+    OnRoutesChanged: func(routes []gateway.ServiceRoute) {
+        for _, route := range routes {
+            proxy.AddRoute(route.Path, route.TargetURL)
+        }
+    },
+})
+gw.Start(ctx)
+```
+
+### Push Mode (Zero Infrastructure)
+
+```go
+// Service pushes directly to gateway — no Consul/etcd needed
+node, _ := discovery.NewServiceNode(discovery.ServiceNodeConfig{
+    ServiceName: "user-service",
+    Address:     "10.0.0.5:8080",
+    GatewayURL:  "http://gateway:9090/_farp/v1",
+})
+node.Start(ctx)
+
+// Gateway accepts push registrations
+gw, _ := discovery.NewGatewayNode(discovery.GatewayNodeConfig{
+    EnablePush: true,
+    OnRoutesChanged: updateRoutes,
+})
+gw.Start(ctx)
+http.Handle("/_farp/v1/", gw.PushHandler())
+```
+
+### Low-Level Gateway Client
 
 ```go
 import "github.com/xraph/farp/gateway"
 
-// Create gateway client
-client := gateway.NewClient(backend)
-
-// Watch for service schema changes
-client.WatchServices(ctx, func(routes []gateway.ServiceRoute) {
-    // Auto-configure gateway routes
+// For advanced use without the discovery system
+client := gateway.NewClient(registry)
+client.WatchServices(ctx, "", func(routes []gateway.ServiceRoute) {
     for _, route := range routes {
-        gateway.AddRoute(route)
+        proxy.AddRoute(route.Path, route.TargetURL)
     }
 })
 ```
@@ -242,12 +278,13 @@ client.WatchServices(ctx, func(routes []gateway.ServiceRoute) {
 
 ## Protocol Status
 
-- ✅ Core protocol specification complete
-- ✅ Type definitions
+- ✅ Core protocol specification (v1.1.0)
+- ✅ Type definitions with route table, routes checksum, and operational hints
 - ✅ Schema providers (OpenAPI, AsyncAPI, gRPC, GraphQL, oRPC, Thrift, Avro)
-- ✅ Discovery extension integration
-- ✅ mDNS/Bonjour backend support
-- 🚧 Gateway client library (in progress)
+- ✅ Service discovery system (Consul, etcd, Kubernetes, Redis, mDNS, Push)
+- ✅ ServiceNode and GatewayNode auto-lifecycle management
+- ✅ Gateway client with atomic route swap (zero-downtime)
+- ✅ Rust implementation with feature-flagged backends
 - ⏳ Community feedback and refinement
 
 ## Supported Schema Types
@@ -268,9 +305,10 @@ See [PROVIDERS_IMPLEMENTATION.md](PROVIDERS_IMPLEMENTATION.md) for detailed prov
 
 ### Essential Reading
 
-- **[Implementation Responsibilities](docs/IMPLEMENTATION_RESPONSIBILITIES.md)** - **START HERE** - What FARP provides vs what you must implement
-- [Complete Specification](docs/SPECIFICATION.md) - Full protocol specification
+- **[Service Discovery Guide](docs/DISCOVERY.md)** - **START HERE** - Full discovery system guide with all backends
+- [Complete Specification](docs/SPECIFICATION.md) - Full protocol specification (v1.1.0)
 - [Architecture Guide](docs/ARCHITECTURE.md) - Design decisions and architectural boundaries
+- [Implementation Responsibilities](docs/IMPLEMENTATION_RESPONSIBILITIES.md) - What FARP provides vs what you implement
 
 ### Integration Guides
 

@@ -200,8 +200,33 @@ func TestClient_WatchServices(t *testing.T) {
 	// Give it time to process initial load
 	time.Sleep(50 * time.Millisecond)
 
-	// Trigger an update event
-	registry.triggerManifestEvent(farp.EventTypeUpdated, manifest)
+	// Trigger an update event with a DIFFERENT route to ensure onChange fires.
+	// Note: WatchServices now skips onChange when routes haven't changed
+	// (this prevents intermittent 404s from unnecessary remounts).
+	updatedManifest := farp.NewManifest("test-service", "v1.0.0", "instance-123")
+	updatedManifest.Endpoints.Health = "/health"
+	updatedManifest.AddSchema(farp.SchemaDescriptor{
+		Type:        farp.SchemaTypeOpenAPI,
+		SpecVersion: "3.1.0",
+		Location: farp.SchemaLocation{
+			Type: farp.LocationTypeInline,
+		},
+		ContentType: "application/json",
+		Hash:        "def456",
+		Size:        2048,
+		InlineSchema: map[string]any{
+			"openapi": "3.1.0",
+			"paths": map[string]any{
+				"/test": map[string]any{
+					"get": map[string]any{},
+				},
+				"/new-route": map[string]any{
+					"post": map[string]any{},
+				},
+			},
+		},
+	})
+	registry.triggerManifestEvent(farp.EventTypeUpdated, updatedManifest)
 	time.Sleep(50 * time.Millisecond)
 
 	cancel()
@@ -209,6 +234,119 @@ func TestClient_WatchServices(t *testing.T) {
 
 	if atomic.LoadInt32(&changeCallCount) < 2 {
 		t.Errorf("expected at least 2 change callbacks, got %d", atomic.LoadInt32(&changeCallCount))
+	}
+}
+
+func TestClient_WatchServices_SkipsUnchangedRoutes(t *testing.T) {
+	registry := newMockRegistry()
+	client := NewClient(registry)
+
+	manifest := farp.NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest.Endpoints.Health = "/health"
+	manifest.AddSchema(farp.SchemaDescriptor{
+		Type:        farp.SchemaTypeOpenAPI,
+		SpecVersion: "3.1.0",
+		Location: farp.SchemaLocation{
+			Type: farp.LocationTypeInline,
+		},
+		ContentType: "application/json",
+		Hash:        "abc123",
+		Size:        1024,
+		InlineSchema: map[string]any{
+			"openapi": "3.1.0",
+			"paths": map[string]any{
+				"/test": map[string]any{
+					"get": map[string]any{},
+				},
+			},
+		},
+	})
+	registry.RegisterManifest(context.Background(), manifest)
+
+	var changeCallCount int32
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		err := client.WatchServices(ctx, "test-service", func(routes []ServiceRoute) {
+			atomic.AddInt32(&changeCallCount, 1)
+		})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("WatchServices() error = %v", err)
+		}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Trigger update with SAME routes — should be skipped
+	registry.triggerManifestEvent(farp.EventTypeUpdated, manifest)
+	time.Sleep(50 * time.Millisecond)
+
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+
+	// Should only have 1 callback (initial load), the update should be skipped
+	if count := atomic.LoadInt32(&changeCallCount); count != 1 {
+		t.Errorf("expected exactly 1 callback (unchanged routes should be skipped), got %d", count)
+	}
+}
+
+func TestClient_WatchServices_RoutesChecksumFastPath(t *testing.T) {
+	registry := newMockRegistry()
+	client := NewClient(registry)
+
+	manifest := farp.NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest.Endpoints.Health = "/health"
+	manifest.RoutesChecksum = "hash-v1"
+	manifest.AddSchema(farp.SchemaDescriptor{
+		Type:        farp.SchemaTypeOpenAPI,
+		SpecVersion: "3.1.0",
+		Location: farp.SchemaLocation{
+			Type: farp.LocationTypeInline,
+		},
+		ContentType: "application/json",
+		Hash:        "abc123",
+		Size:        1024,
+		InlineSchema: map[string]any{
+			"openapi": "3.1.0",
+			"paths": map[string]any{
+				"/test": map[string]any{
+					"get": map[string]any{},
+				},
+			},
+		},
+	})
+	registry.RegisterManifest(context.Background(), manifest)
+
+	var changeCallCount int32
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		err := client.WatchServices(ctx, "test-service", func(routes []ServiceRoute) {
+			atomic.AddInt32(&changeCallCount, 1)
+		})
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("WatchServices() error = %v", err)
+		}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Update with same RoutesChecksum — fast path should skip
+	updatedManifest := manifest.Clone()
+	updatedManifest.Schemas[0].Hash = "different-schema-hash" // Schema changed
+	updatedManifest.RoutesChecksum = "hash-v1"                // But routes unchanged
+	registry.triggerManifestEvent(farp.EventTypeUpdated, updatedManifest)
+	time.Sleep(50 * time.Millisecond)
+
+	cancel()
+	time.Sleep(50 * time.Millisecond)
+
+	if count := atomic.LoadInt32(&changeCallCount); count != 1 {
+		t.Errorf("expected 1 callback (fast path should skip unchanged routes), got %d", count)
 	}
 }
 

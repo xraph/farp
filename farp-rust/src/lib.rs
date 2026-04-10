@@ -39,6 +39,7 @@
 //! - `providers-thrift`: Thrift provider
 //! - `providers-all`: All providers
 //! - `gateway`: Gateway client implementation
+//! - `discovery`: Service discovery abstractions
 //! - `full`: Everything enabled
 
 pub mod errors;
@@ -47,6 +48,9 @@ pub mod provider;
 pub mod storage;
 pub mod types;
 pub mod version;
+
+// Discovery module
+pub mod discovery;
 
 // Registry module
 pub mod registry {

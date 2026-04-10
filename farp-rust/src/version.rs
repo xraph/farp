@@ -3,13 +3,17 @@
 use serde::{Deserialize, Serialize};
 
 /// Current FARP protocol version (semver)
-pub const PROTOCOL_VERSION: &str = "1.0.0";
+/// v1.1.0: Added route table, routes checksum, atomic route swap,
+/// rate limiting, circuit breaker, CORS, observability, caching,
+/// load balancing, API versioning, middleware declarations,
+/// and graceful shutdown configuration.
+pub const PROTOCOL_VERSION: &str = "1.1.0";
 
 /// Protocol major version
 pub const PROTOCOL_MAJOR: u32 = 1;
 
 /// Protocol minor version
-pub const PROTOCOL_MINOR: u32 = 0;
+pub const PROTOCOL_MINOR: u32 = 1;
 
 /// Protocol patch version
 pub const PROTOCOL_PATCH: u32 = 0;
@@ -89,9 +93,9 @@ mod tests {
     #[test]
     fn test_get_version() {
         let version = get_version();
-        assert_eq!(version.version, "1.0.0");
+        assert_eq!(version.version, "1.1.0");
         assert_eq!(version.major, 1);
-        assert_eq!(version.minor, 0);
+        assert_eq!(version.minor, 1);
         assert_eq!(version.patch, 0);
     }
 
@@ -108,8 +112,11 @@ mod tests {
         assert!(!is_compatible("2.0.0"));
         assert!(!is_compatible("0.9.0"));
 
+        // Same major, same minor - compatible
+        assert!(is_compatible("1.1.0"));
+
         // Same major, higher minor - not compatible
-        assert!(!is_compatible("1.1.0"));
+        assert!(!is_compatible("1.2.0"));
 
         // Invalid version strings
         assert!(!is_compatible("1.0"));

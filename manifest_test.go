@@ -661,6 +661,220 @@ func BenchmarkManifest_UpdateChecksum(b *testing.B) {
 	}
 }
 
+func TestCalculateRoutesChecksum(t *testing.T) {
+	manifest := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest.Endpoints.Health = "/health"
+	manifest.Routing.Strategy = MountStrategyService
+	manifest.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET", "POST"}, Protocol: "rest"},
+		{Path: "/users/{id}", Methods: []string{"GET", "PUT", "DELETE"}, Protocol: "rest"},
+	}
+
+	checksum1, err := CalculateRoutesChecksum(manifest)
+	if err != nil {
+		t.Fatalf("CalculateRoutesChecksum() error = %v", err)
+	}
+
+	if checksum1 == "" {
+		t.Fatal("expected non-empty checksum")
+	}
+
+	if len(checksum1) != 64 {
+		t.Errorf("expected 64-char hex string, got %d chars", len(checksum1))
+	}
+
+	// Same manifest should produce same checksum
+	checksum2, err := CalculateRoutesChecksum(manifest)
+	if err != nil {
+		t.Fatalf("CalculateRoutesChecksum() error = %v", err)
+	}
+
+	if checksum1 != checksum2 {
+		t.Error("same manifest should produce same routes checksum")
+	}
+}
+
+func TestCalculateRoutesChecksum_DifferentRoutes(t *testing.T) {
+	manifest1 := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest1.Endpoints.Health = "/health"
+	manifest1.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET"}, Protocol: "rest"},
+	}
+
+	manifest2 := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest2.Endpoints.Health = "/health"
+	manifest2.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET"}, Protocol: "rest"},
+		{Path: "/posts", Methods: []string{"GET"}, Protocol: "rest"},
+	}
+
+	checksum1, _ := CalculateRoutesChecksum(manifest1)
+	checksum2, _ := CalculateRoutesChecksum(manifest2)
+
+	if checksum1 == checksum2 {
+		t.Error("different routes should produce different checksums")
+	}
+}
+
+func TestCalculateRoutesChecksum_MethodOrderIndependent(t *testing.T) {
+	manifest1 := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest1.Endpoints.Health = "/health"
+	manifest1.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"POST", "GET"}, Protocol: "rest"},
+	}
+
+	manifest2 := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest2.Endpoints.Health = "/health"
+	manifest2.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET", "POST"}, Protocol: "rest"},
+	}
+
+	checksum1, _ := CalculateRoutesChecksum(manifest1)
+	checksum2, _ := CalculateRoutesChecksum(manifest2)
+
+	if checksum1 != checksum2 {
+		t.Error("method order should not affect checksum")
+	}
+}
+
+func TestCalculateRoutesChecksum_StrategyChange(t *testing.T) {
+	manifest1 := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest1.Endpoints.Health = "/health"
+	manifest1.Routing.Strategy = MountStrategyService
+	manifest1.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET"}, Protocol: "rest"},
+	}
+
+	manifest2 := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest2.Endpoints.Health = "/health"
+	manifest2.Routing.Strategy = MountStrategyRoot
+	manifest2.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET"}, Protocol: "rest"},
+	}
+
+	checksum1, _ := CalculateRoutesChecksum(manifest1)
+	checksum2, _ := CalculateRoutesChecksum(manifest2)
+
+	if checksum1 == checksum2 {
+		t.Error("different mount strategy should produce different checksum")
+	}
+}
+
+func TestUpdateRoutesChecksum(t *testing.T) {
+	manifest := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest.Endpoints.Health = "/health"
+	manifest.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET"}, Protocol: "rest"},
+	}
+
+	if manifest.RoutesChecksum != "" {
+		t.Error("routes checksum should be empty before update")
+	}
+
+	err := manifest.UpdateRoutesChecksum()
+	if err != nil {
+		t.Fatalf("UpdateRoutesChecksum() error = %v", err)
+	}
+
+	if manifest.RoutesChecksum == "" {
+		t.Error("routes checksum should be set after update")
+	}
+}
+
+func TestDiffManifests_RoutingChanges(t *testing.T) {
+	old := NewManifest("test-service", "v1.0.0", "instance-123")
+	old.Endpoints.Health = "/health"
+	old.Routing.Strategy = MountStrategyService
+
+	newM := old.Clone()
+	newM.Routing.Strategy = MountStrategyRoot
+
+	diff := DiffManifests(old, newM)
+
+	if !diff.RoutingChanged {
+		t.Error("expected routing change to be detected")
+	}
+
+	if !diff.HasRouteChanges() {
+		t.Error("HasRouteChanges should return true when routing config changed")
+	}
+}
+
+func TestDiffManifests_RoutesChecksumChange(t *testing.T) {
+	old := NewManifest("test-service", "v1.0.0", "instance-123")
+	old.Endpoints.Health = "/health"
+	old.RoutesChecksum = "abc123"
+
+	newM := old.Clone()
+	newM.RoutesChecksum = "def456"
+
+	diff := DiffManifests(old, newM)
+
+	if !diff.RoutesChecksumChanged {
+		t.Error("expected routes checksum change to be detected")
+	}
+
+	if !diff.HasRouteChanges() {
+		t.Error("HasRouteChanges should return true when routes checksum changed")
+	}
+}
+
+func TestDiffManifests_SchemaDescriptionChangeNoRouteChange(t *testing.T) {
+	// Schema content change (different hash) but same route structure.
+	// HasRouteChanges should return false because SchemasChanged does not
+	// mean routes changed (e.g., only a description or model field updated).
+	old := NewManifest("test-service", "v1.0.0", "instance-123")
+	old.Endpoints.Health = "/health"
+	old.RoutesChecksum = "same-hash"
+	old.AddSchema(SchemaDescriptor{
+		Type:        SchemaTypeOpenAPI,
+		SpecVersion: "3.1.0",
+		Location:    SchemaLocation{Type: LocationTypeHTTP, URL: "http://test.com"},
+		ContentType: "application/json",
+		Hash:        "hash1",
+		Size:        1024,
+	})
+
+	newM := old.Clone()
+	newM.Schemas[0].Hash = "hash2" // Schema content changed
+	// But routes checksum stays the same
+
+	diff := DiffManifests(old, newM)
+
+	if !diff.HasChanges() {
+		t.Error("HasChanges should detect schema content change")
+	}
+
+	// RoutesChecksum is unchanged, routing is unchanged, no schemas added/removed
+	if diff.HasRouteChanges() {
+		t.Error("HasRouteChanges should return false when only schema content changed but routes checksum is same")
+	}
+}
+
+func TestManifest_Clone_IncludesRouteTable(t *testing.T) {
+	manifest := NewManifest("test-service", "v1.0.0", "instance-123")
+	manifest.Endpoints.Health = "/health"
+	manifest.RoutesChecksum = "test-hash"
+	manifest.RouteTable = []RouteDescriptor{
+		{Path: "/users", Methods: []string{"GET"}, Protocol: "rest"},
+	}
+	manifest.Routing.Strategy = MountStrategyService
+
+	clone := manifest.Clone()
+
+	if clone.RoutesChecksum != manifest.RoutesChecksum {
+		t.Error("clone should preserve RoutesChecksum")
+	}
+
+	if len(clone.RouteTable) != len(manifest.RouteTable) {
+		t.Error("clone should preserve RouteTable")
+	}
+
+	if clone.Routing.Strategy != manifest.Routing.Strategy {
+		t.Error("clone should preserve Routing config")
+	}
+}
+
 func BenchmarkCalculateSchemaChecksum(b *testing.B) {
 	schema := map[string]any{
 		"openapi": "3.1.0",

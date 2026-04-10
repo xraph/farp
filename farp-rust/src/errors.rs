@@ -69,6 +69,30 @@ pub enum Error {
     #[error("schema validation failed: {0}")]
     ValidationFailed(String),
 
+    /// Service instance not found
+    #[error("{kind} not found: {id}")]
+    NotFound { kind: String, id: String },
+
+    /// Service registration failed
+    #[error("registration failed: {0}")]
+    RegistrationFailed(String),
+
+    /// Service deregistration failed
+    #[error("deregistration failed: {0}")]
+    DeregistrationFailed(String),
+
+    /// Health check reporting failed
+    #[error("health check failed: {0}")]
+    HealthCheckFailed(String),
+
+    /// Discovery backend unavailable
+    #[error("discovery backend unavailable: {0}")]
+    DiscoveryUnavailable(String),
+
+    /// Manifest fetch failed
+    #[error("manifest fetch failed: {0}")]
+    ManifestFetchFailed(String),
+
     /// Manifest-specific error
     #[error("manifest error for service={service_name} instance={instance_id}: {source}")]
     Manifest {
@@ -183,6 +207,21 @@ impl Error {
     }
 
     /// Creates a new validation failed error
+    pub fn not_found(kind: impl Into<String>, id: impl Into<String>) -> Self {
+        Error::NotFound {
+            kind: kind.into(),
+            id: id.into(),
+        }
+    }
+
+    pub fn registration_failed(message: impl Into<String>) -> Self {
+        Error::RegistrationFailed(message.into())
+    }
+
+    pub fn discovery_unavailable(message: impl Into<String>) -> Self {
+        Error::DiscoveryUnavailable(message.into())
+    }
+
     pub fn validation_failed(message: impl Into<String>) -> Self {
         Error::ValidationFailed(message.into())
     }

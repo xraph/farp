@@ -194,12 +194,19 @@ func (m *SchemaManifest) Clone() *SchemaManifest {
 		Schemas:        make([]SchemaDescriptor, len(m.Schemas)),
 		Capabilities:   make([]string, len(m.Capabilities)),
 		Endpoints:      m.Endpoints,
+		Routing:        m.Routing,
 		UpdatedAt:      m.UpdatedAt,
 		Checksum:       m.Checksum,
+		RoutesChecksum: m.RoutesChecksum,
 	}
 
 	copy(clone.Schemas, m.Schemas)
 	copy(clone.Capabilities, m.Capabilities)
+
+	if len(m.RouteTable) > 0 {
+		clone.RouteTable = make([]RouteDescriptor, len(m.RouteTable))
+		copy(clone.RouteTable, m.RouteTable)
+	}
 
 	return clone
 }
@@ -314,6 +321,89 @@ func CalculateSchemaChecksum(schema any) (string, error) {
 	return hex.EncodeToString(hash[:]), nil
 }
 
+// UpdateRoutesChecksum recalculates the routes checksum based on the route table
+// and routing configuration. Services SHOULD call this after building their route table.
+func (m *SchemaManifest) UpdateRoutesChecksum() error {
+	checksum, err := CalculateRoutesChecksum(m)
+	if err != nil {
+		return fmt.Errorf("failed to calculate routes checksum: %w", err)
+	}
+
+	m.RoutesChecksum = checksum
+
+	return nil
+}
+
+// CalculateRoutesChecksum calculates a SHA256 hash of the route-affecting fields:
+// routing config (strategy, base_path, subdomain, rewrite, strip_prefix) and
+// sorted route table entries (path + methods + protocol).
+// This hash is used by gateways to detect whether route remounting is needed.
+func CalculateRoutesChecksum(manifest *SchemaManifest) (string, error) {
+	// Build canonical representation of route-affecting fields
+	type routeEntry struct {
+		Path     string   `json:"path"`
+		Methods  []string `json:"methods,omitempty"`
+		Protocol string   `json:"protocol"`
+	}
+
+	type routeCanonical struct {
+		Strategy    string        `json:"strategy"`
+		BasePath    string        `json:"base_path"`
+		Subdomain   string        `json:"subdomain"`
+		Rewrite     []PathRewrite `json:"rewrite"`
+		StripPrefix bool          `json:"strip_prefix"`
+		Routes      []routeEntry  `json:"routes"`
+		Health      string        `json:"health"`
+		GraphQL     string        `json:"graphql"`
+		OpenAPI     string        `json:"openapi"`
+		AsyncAPI    string        `json:"asyncapi"`
+	}
+
+	// Sort route table entries for deterministic hashing
+	sortedRoutes := make([]routeEntry, len(manifest.RouteTable))
+	for i, r := range manifest.RouteTable {
+		// Sort methods within each route for determinism
+		methods := make([]string, len(r.Methods))
+		copy(methods, r.Methods)
+		sort.Strings(methods)
+
+		sortedRoutes[i] = routeEntry{
+			Path:     r.Path,
+			Methods:  methods,
+			Protocol: r.Protocol,
+		}
+	}
+
+	sort.Slice(sortedRoutes, func(i, j int) bool {
+		if sortedRoutes[i].Path != sortedRoutes[j].Path {
+			return sortedRoutes[i].Path < sortedRoutes[j].Path
+		}
+		return sortedRoutes[i].Protocol < sortedRoutes[j].Protocol
+	})
+
+	canonical := routeCanonical{
+		Strategy:    string(manifest.Routing.Strategy),
+		BasePath:    manifest.Routing.BasePath,
+		Subdomain:   manifest.Routing.Subdomain,
+		Rewrite:     manifest.Routing.Rewrite,
+		StripPrefix: manifest.Routing.StripPrefix,
+		Routes:      sortedRoutes,
+		Health:      manifest.Endpoints.Health,
+		GraphQL:     manifest.Endpoints.GraphQL,
+		OpenAPI:     manifest.Endpoints.OpenAPI,
+		AsyncAPI:    manifest.Endpoints.AsyncAPI,
+	}
+
+	data, err := json.Marshal(canonical)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize route canonical form: %w", err)
+	}
+
+	hash := sha256.Sum256(data)
+
+	return hex.EncodeToString(hash[:]), nil
+}
+
 // ManifestDiff represents the difference between two manifests.
 type ManifestDiff struct {
 	// SchemasAdded are schemas present in new but not in old
@@ -333,6 +423,13 @@ type ManifestDiff struct {
 
 	// EndpointsChanged indicates if endpoints changed
 	EndpointsChanged bool
+
+	// RoutingChanged indicates if routing configuration changed
+	RoutingChanged bool
+
+	// RoutesChecksumChanged indicates the route table hash changed.
+	// Gateway implementations SHOULD use this to decide whether to remount routes.
+	RoutesChecksumChanged bool
 }
 
 // SchemaChangeDiff represents a changed schema.
@@ -349,7 +446,19 @@ func (d *ManifestDiff) HasChanges() bool {
 		len(d.SchemasChanged) > 0 ||
 		len(d.CapabilitiesAdded) > 0 ||
 		len(d.CapabilitiesRemoved) > 0 ||
-		d.EndpointsChanged
+		d.EndpointsChanged ||
+		d.RoutingChanged ||
+		d.RoutesChecksumChanged
+}
+
+// HasRouteChanges returns true only if route-affecting changes were detected.
+// Gateway implementations SHOULD use this to decide whether to remount routes.
+// This prevents unnecessary route remounts that cause intermittent 404s.
+func (d *ManifestDiff) HasRouteChanges() bool {
+	return len(d.SchemasAdded) > 0 ||
+		len(d.SchemasRemoved) > 0 ||
+		d.RoutingChanged ||
+		d.RoutesChecksumChanged
 }
 
 // DiffManifests compares two manifests and returns the differences.
@@ -417,6 +526,20 @@ func DiffManifests(old, newManifest *SchemaManifest) *ManifestDiff {
 	// Compare endpoints (simple comparison)
 	if old.Endpoints != newManifest.Endpoints {
 		diff.EndpointsChanged = true
+	}
+
+	// Compare routing configuration
+	if old.Routing.Strategy != newManifest.Routing.Strategy ||
+		old.Routing.BasePath != newManifest.Routing.BasePath ||
+		old.Routing.Subdomain != newManifest.Routing.Subdomain ||
+		old.Routing.StripPrefix != newManifest.Routing.StripPrefix ||
+		old.Routing.Priority != newManifest.Routing.Priority {
+		diff.RoutingChanged = true
+	}
+
+	// Compare routes checksum (fast path for route change detection)
+	if old.RoutesChecksum != newManifest.RoutesChecksum {
+		diff.RoutesChecksumChanged = true
 	}
 
 	return diff

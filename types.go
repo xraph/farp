@@ -110,9 +110,20 @@ type SchemaManifest struct {
 	// Service operational hints (non-binding)
 	Hints *ServiceHints `json:"hints,omitempty"`
 
+	// Route table: pre-computed list of routes the service exposes.
+	// When present, gateways can use this directly instead of parsing schemas.
+	// This enables fast route-change detection without schema fetching.
+	RouteTable []RouteDescriptor `json:"route_table,omitempty"`
+
 	// Change tracking
 	UpdatedAt int64  `json:"updated_at"` // Unix timestamp
 	Checksum  string `json:"checksum"`   // SHA256 of all schemas combined
+
+	// RoutesChecksum is a SHA256 hash of the computed route table.
+	// It covers: route paths, methods, mount strategy, base path, rewrite rules.
+	// Gateways SHOULD compare this value before remounting routes.
+	// If unchanged, the gateway MUST skip route remounting to avoid intermittent 404s.
+	RoutesChecksum string `json:"routes_checksum,omitempty"`
 }
 
 // SchemaDescriptor describes a single API schema/contract.
@@ -207,6 +218,14 @@ type SchemaEndpoints struct {
 	// GraphQL introspection endpoint (optional)
 	// Example: "/graphql"
 	GraphQL string `json:"graphql,omitempty"`
+
+	// Documentation URL for human-readable API docs
+	// Example: "https://docs.example.com/user-service"
+	Documentation string `json:"documentation,omitempty"`
+
+	// Changelog URL for API change history
+	// Example: "https://docs.example.com/user-service/changelog"
+	Changelog string `json:"changelog,omitempty"`
 }
 
 // Capability represents a protocol capability.
@@ -389,6 +408,12 @@ type RoutingConfig struct {
 
 	// Tags for route grouping and filtering
 	Tags []string `json:"tags,omitempty"`
+
+	// Default middleware applied to all routes for this service
+	Middleware []MiddlewareDeclaration `json:"middleware,omitempty"`
+
+	// API versioning strategy
+	Versioning *APIVersioningConfig `json:"versioning,omitempty"`
 }
 
 // MountStrategy defines how routes are mounted in the gateway.
@@ -690,6 +715,16 @@ const (
 
 	// EventTrafficShift indicates traffic shift event.
 	EventTrafficShift WebhookEventType = "traffic.shift"
+
+	// EventRoutesChanging indicates routes are about to change (pre-notification).
+	// Gateways can use this to prepare for the route swap.
+	EventRoutesChanging WebhookEventType = "routes.changing"
+
+	// EventRoutesChanged indicates routes have been changed/swapped.
+	EventRoutesChanged WebhookEventType = "routes.changed"
+
+	// EventRoutesDraining indicates old routes are draining connections.
+	EventRoutesDraining WebhookEventType = "routes.draining"
 )
 
 // String returns the string representation of the webhook event type.
@@ -710,6 +745,18 @@ type RetryConfig struct {
 
 	// Backoff multiplier
 	Multiplier float64 `json:"multiplier"`
+
+	// Retryable HTTP status codes (default: [502, 503, 504])
+	RetryableStatusCodes []int `json:"retryable_status_codes,omitempty"`
+
+	// Retryable HTTP methods (default: GET, HEAD, OPTIONS)
+	RetryableMethods []string `json:"retryable_methods,omitempty"`
+
+	// Retry on connection errors (timeouts, refused, reset)
+	RetryOnConnectionError bool `json:"retry_on_connection_error,omitempty"`
+
+	// Per-attempt timeout (overrides global timeout for each retry)
+	PerAttemptTimeout string `json:"per_attempt_timeout,omitempty"`
 }
 
 // SchemaCompatibility provides schema compatibility metadata.
@@ -848,6 +895,7 @@ type Deprecation struct {
 }
 
 // ServiceHints provides operational hints for the gateway.
+// All hints are non-binding — gateways may choose to honor or ignore them.
 type ServiceHints struct {
 	// Recommended timeout for operations
 	RecommendedTimeout string `json:"recommended_timeout,omitempty"`
@@ -860,6 +908,33 @@ type ServiceHints struct {
 
 	// Dependencies on other services
 	Dependencies []ServiceDependency `json:"dependencies,omitempty"`
+
+	// Rate limiting configuration (service-level default)
+	RateLimit *RateLimitConfig `json:"rate_limit,omitempty"`
+
+	// Circuit breaker configuration
+	CircuitBreaker *CircuitBreakerConfig `json:"circuit_breaker,omitempty"`
+
+	// CORS configuration (service-level default)
+	CORS *CORSConfig `json:"cors,omitempty"`
+
+	// Retry policy configuration
+	RetryPolicy *RetryConfig `json:"retry_policy,omitempty"`
+
+	// Observability configuration (tracing, metrics)
+	Observability *ObservabilityConfig `json:"observability,omitempty"`
+
+	// Graceful shutdown configuration
+	GracefulShutdown *GracefulShutdownConfig `json:"graceful_shutdown,omitempty"`
+
+	// Response caching configuration (service-level default)
+	Cache *CacheConfig `json:"cache,omitempty"`
+
+	// Load balancing configuration
+	LoadBalancing *LoadBalancingConfig `json:"load_balancing,omitempty"`
+
+	// Request/response transformation hints
+	Transformations *TransformationConfig `json:"transformations,omitempty"`
 }
 
 // LatencyProfile describes expected latency characteristics.
@@ -1224,4 +1299,436 @@ type ORPCMetadata struct {
 
 	// Streaming procedures
 	StreamingProcedures []string `json:"streaming_procedures,omitempty"`
+}
+
+// =============================================================================
+// Route Table Types (Phase 1 - Route Hash / Atomic Route Updates)
+// =============================================================================
+
+// RouteDescriptor describes a single route that the service exposes.
+// Services compute these from their schemas and include them in the manifest.
+// This allows gateways to know the exact route table without fetching/parsing schemas.
+type RouteDescriptor struct {
+	// Path pattern (e.g., "/users/{id}", "/graphql")
+	Path string `json:"path"`
+
+	// HTTP methods (e.g., ["GET", "POST"]). Empty for non-HTTP protocols.
+	Methods []string `json:"methods,omitempty"`
+
+	// Protocol type (rest, grpc, graphql, websocket, sse)
+	Protocol string `json:"protocol"`
+
+	// Operation identifier (matches OpenAPI operationId, gRPC method name, etc.)
+	OperationID string `json:"operation_id,omitempty"`
+
+	// Per-route timeout override
+	Timeout string `json:"timeout,omitempty"`
+
+	// Per-route rate limit (overrides service-level)
+	RateLimit *RateLimitConfig `json:"rate_limit,omitempty"`
+
+	// Per-route CORS override
+	CORS *CORSConfig `json:"cors,omitempty"`
+
+	// Per-route middleware declarations
+	Middleware []MiddlewareDeclaration `json:"middleware,omitempty"`
+
+	// Per-route cache configuration
+	Cache *CacheConfig `json:"cache,omitempty"`
+
+	// Per-route metadata
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Whether this route is public (no authentication required)
+	Public bool `json:"public,omitempty"`
+
+	// Whether this route is deprecated
+	Deprecated bool `json:"deprecated,omitempty"`
+}
+
+// RouteUpdateHandler provides atomic route update callbacks.
+// Gateway implementations SHOULD implement this pattern to prevent
+// intermittent 404s during route remounting.
+//
+// The flow is:
+//  1. PrepareRoutes — validate new routes (may fail)
+//  2. CommitRoutes — atomically swap route table (should not fail)
+//  3. RollbackRoutes — revert if commit fails
+type RouteUpdateHandler interface {
+	// PrepareRoutes is called with new routes for validation.
+	// Return an error to reject the update.
+	PrepareRoutes(routes []RouteDescriptor) error
+
+	// CommitRoutes atomically swaps the route table.
+	// Called only after PrepareRoutes succeeds.
+	CommitRoutes() error
+
+	// RollbackRoutes reverts a failed commit.
+	RollbackRoutes() error
+}
+
+// =============================================================================
+// Rate Limiting Configuration
+// =============================================================================
+
+// RateLimitConfig provides rate limiting configuration.
+// Can be applied at service level (via ServiceHints) or per-route (via RouteDescriptor).
+type RateLimitConfig struct {
+	// Requests per second (0 = unlimited)
+	RequestsPerSecond int `json:"requests_per_second,omitempty"`
+
+	// Burst size (token bucket burst)
+	BurstSize int `json:"burst_size,omitempty"`
+
+	// Rate limit strategy
+	Strategy RateLimitStrategy `json:"strategy,omitempty"`
+
+	// Rate limit key (what to limit by)
+	Key RateLimitKey `json:"key,omitempty"`
+
+	// Custom response status code (default: 429)
+	StatusCode int `json:"status_code,omitempty"`
+
+	// Custom response headers to include in rate-limited responses
+	ResponseHeaders map[string]string `json:"response_headers,omitempty"`
+}
+
+// RateLimitStrategy defines rate limiting algorithms.
+type RateLimitStrategy string
+
+const (
+	// RateLimitFixed uses a fixed window counter.
+	RateLimitFixed RateLimitStrategy = "fixed_window"
+
+	// RateLimitSliding uses a sliding window counter.
+	RateLimitSliding RateLimitStrategy = "sliding_window"
+
+	// RateLimitToken uses a token bucket algorithm.
+	RateLimitToken RateLimitStrategy = "token_bucket"
+
+	// RateLimitLeaky uses a leaky bucket algorithm.
+	RateLimitLeaky RateLimitStrategy = "leaky_bucket"
+)
+
+// String returns the string representation of the rate limit strategy.
+func (rls RateLimitStrategy) String() string {
+	return string(rls)
+}
+
+// RateLimitKey defines what dimension to rate limit by.
+type RateLimitKey string
+
+const (
+	// RateLimitKeyIP limits by client IP address.
+	RateLimitKeyIP RateLimitKey = "ip"
+
+	// RateLimitKeyUser limits by authenticated user.
+	RateLimitKeyUser RateLimitKey = "user"
+
+	// RateLimitKeyAPIKey limits by API key.
+	RateLimitKeyAPIKey RateLimitKey = "api_key"
+
+	// RateLimitKeyGlobal applies a global rate limit.
+	RateLimitKeyGlobal RateLimitKey = "global"
+)
+
+// String returns the string representation of the rate limit key.
+func (rlk RateLimitKey) String() string {
+	return string(rlk)
+}
+
+// =============================================================================
+// Circuit Breaker Configuration
+// =============================================================================
+
+// CircuitBreakerConfig provides circuit breaker configuration hints.
+type CircuitBreakerConfig struct {
+	// Enable circuit breaker
+	Enabled bool `json:"enabled"`
+
+	// Error threshold percentage to open circuit (0-100)
+	ErrorThresholdPercent int `json:"error_threshold_percent,omitempty"`
+
+	// Minimum number of requests before evaluating
+	MinimumRequests int `json:"minimum_requests,omitempty"`
+
+	// Duration the circuit stays open before transitioning to half-open
+	OpenDuration string `json:"open_duration,omitempty"`
+
+	// Number of requests allowed in half-open state
+	HalfOpenRequests int `json:"half_open_requests,omitempty"`
+
+	// Sliding window size for error rate calculation
+	WindowSize string `json:"window_size,omitempty"`
+
+	// HTTP status codes that count as errors (default: [500, 502, 503, 504])
+	ErrorStatusCodes []int `json:"error_status_codes,omitempty"`
+}
+
+// =============================================================================
+// CORS Configuration
+// =============================================================================
+
+// CORSConfig provides Cross-Origin Resource Sharing configuration.
+// Can be applied at service level (via ServiceHints) or per-route (via RouteDescriptor).
+type CORSConfig struct {
+	// Allowed origins (["*"] for all, or specific origins)
+	AllowedOrigins []string `json:"allowed_origins,omitempty"`
+
+	// Allowed HTTP methods
+	AllowedMethods []string `json:"allowed_methods,omitempty"`
+
+	// Allowed headers
+	AllowedHeaders []string `json:"allowed_headers,omitempty"`
+
+	// Exposed headers (visible to the browser)
+	ExposedHeaders []string `json:"exposed_headers,omitempty"`
+
+	// Allow credentials (cookies, auth headers)
+	AllowCredentials bool `json:"allow_credentials,omitempty"`
+
+	// Max age for preflight cache (seconds)
+	MaxAge int `json:"max_age,omitempty"`
+}
+
+// =============================================================================
+// Observability Configuration
+// =============================================================================
+
+// ObservabilityConfig provides tracing and metrics configuration hints.
+type ObservabilityConfig struct {
+	// Tracing configuration
+	Tracing *TracingConfig `json:"tracing,omitempty"`
+
+	// Custom metric labels to propagate
+	MetricLabels map[string]string `json:"metric_labels,omitempty"`
+
+	// Log level hint
+	LogLevel string `json:"log_level,omitempty"`
+
+	// Sampling rate for traces (0.0 to 1.0)
+	SamplingRate float64 `json:"sampling_rate,omitempty"`
+}
+
+// TracingConfig provides distributed tracing configuration.
+type TracingConfig struct {
+	// Trace context propagation format
+	PropagationFormat string `json:"propagation_format,omitempty"` // "w3c", "b3", "jaeger"
+
+	// Service name for traces (defaults to manifest service_name)
+	ServiceName string `json:"service_name,omitempty"`
+
+	// Trace ID header name (if non-standard)
+	TraceIDHeader string `json:"trace_id_header,omitempty"`
+
+	// Baggage headers to propagate through the call chain
+	BaggageHeaders []string `json:"baggage_headers,omitempty"`
+}
+
+// =============================================================================
+// Graceful Shutdown Configuration
+// =============================================================================
+
+// GracefulShutdownConfig provides graceful shutdown configuration hints.
+type GracefulShutdownConfig struct {
+	// Drain timeout — how long to wait for in-flight requests to complete
+	DrainTimeout string `json:"drain_timeout,omitempty"`
+
+	// Shutdown delay — delay between receiving signal and starting drain.
+	// Allows load balancers to remove the instance before connections drain.
+	ShutdownDelay string `json:"shutdown_delay,omitempty"`
+
+	// Health check failure threshold before considering fully drained
+	HealthFailureThreshold int `json:"health_failure_threshold,omitempty"`
+}
+
+// =============================================================================
+// Middleware Declarations
+// =============================================================================
+
+// MiddlewareDeclaration declares a middleware the gateway should apply to routes.
+type MiddlewareDeclaration struct {
+	// Middleware name (must be known to the gateway)
+	Name string `json:"name"`
+
+	// Execution order (lower = earlier in chain)
+	Order int `json:"order,omitempty"`
+
+	// Middleware configuration (varies by middleware)
+	Config map[string]any `json:"config,omitempty"`
+
+	// Whether this middleware is required (gateway should error if not available)
+	Required bool `json:"required,omitempty"`
+}
+
+// =============================================================================
+// Response Caching Configuration
+// =============================================================================
+
+// CacheConfig provides response caching configuration hints.
+// Can be applied at service level (via ServiceHints) or per-route (via RouteDescriptor).
+type CacheConfig struct {
+	// Enable caching
+	Enabled bool `json:"enabled"`
+
+	// Cache TTL
+	TTL string `json:"ttl,omitempty"`
+
+	// Vary headers (cache key varies by these request headers)
+	VaryHeaders []string `json:"vary_headers,omitempty"`
+
+	// Cache key template (e.g., "{method}:{path}:{query.page}")
+	KeyTemplate string `json:"key_template,omitempty"`
+
+	// Stale-while-revalidate duration
+	StaleWhileRevalidate string `json:"stale_while_revalidate,omitempty"`
+
+	// HTTP status codes to cache (default: [200])
+	CacheableStatuses []int `json:"cacheable_statuses,omitempty"`
+}
+
+// =============================================================================
+// Load Balancing Configuration
+// =============================================================================
+
+// LoadBalancingConfig provides load balancing configuration hints.
+type LoadBalancingConfig struct {
+	// Load balancing strategy
+	Strategy LoadBalancingStrategy `json:"strategy"`
+
+	// Sticky sessions configuration
+	StickySession *StickySessionConfig `json:"sticky_session,omitempty"`
+
+	// Health check configuration for load balancer
+	HealthCheck *LBHealthCheckConfig `json:"health_check,omitempty"`
+}
+
+// LoadBalancingStrategy defines load balancing algorithms.
+type LoadBalancingStrategy string
+
+const (
+	// LBRoundRobin distributes requests evenly across instances.
+	LBRoundRobin LoadBalancingStrategy = "round_robin"
+
+	// LBLeastConnections routes to the instance with fewest active connections.
+	LBLeastConnections LoadBalancingStrategy = "least_connections"
+
+	// LBWeightedRoundRobin distributes based on instance weight.
+	LBWeightedRoundRobin LoadBalancingStrategy = "weighted_round_robin"
+
+	// LBIPHash routes based on client IP hash (consistent mapping).
+	LBIPHash LoadBalancingStrategy = "ip_hash"
+
+	// LBRandom routes randomly.
+	LBRandom LoadBalancingStrategy = "random"
+
+	// LBConsistentHash uses consistent hashing for stable routing.
+	LBConsistentHash LoadBalancingStrategy = "consistent_hash"
+)
+
+// String returns the string representation of the load balancing strategy.
+func (lbs LoadBalancingStrategy) String() string {
+	return string(lbs)
+}
+
+// StickySessionConfig provides sticky session configuration.
+type StickySessionConfig struct {
+	// Enable sticky sessions
+	Enabled bool `json:"enabled"`
+
+	// Cookie name for session affinity
+	CookieName string `json:"cookie_name,omitempty"`
+
+	// Session TTL
+	TTL string `json:"ttl,omitempty"`
+}
+
+// LBHealthCheckConfig provides load balancer health check configuration.
+type LBHealthCheckConfig struct {
+	// Health check interval
+	Interval string `json:"interval,omitempty"`
+
+	// Health check timeout
+	Timeout string `json:"timeout,omitempty"`
+
+	// Consecutive failures before marking unhealthy
+	UnhealthyThreshold int `json:"unhealthy_threshold,omitempty"`
+
+	// Consecutive successes before marking healthy
+	HealthyThreshold int `json:"healthy_threshold,omitempty"`
+}
+
+// =============================================================================
+// API Versioning Configuration
+// =============================================================================
+
+// APIVersioningConfig provides API versioning strategy configuration.
+type APIVersioningConfig struct {
+	// Versioning strategy
+	Strategy VersioningStrategy `json:"strategy"`
+
+	// Current version
+	CurrentVersion string `json:"current_version,omitempty"`
+
+	// All supported versions
+	SupportedVersions []string `json:"supported_versions,omitempty"`
+
+	// Default version when no version is specified in the request
+	DefaultVersion string `json:"default_version,omitempty"`
+
+	// Header name for header-based versioning (e.g., "Accept-Version")
+	HeaderName string `json:"header_name,omitempty"`
+
+	// Query parameter name for query-based versioning (e.g., "version")
+	QueryParam string `json:"query_param,omitempty"`
+
+	// Deprecation policy for old versions
+	DeprecationPolicy *VersionDeprecationPolicy `json:"deprecation_policy,omitempty"`
+}
+
+// VersioningStrategy defines how API versioning is handled.
+type VersioningStrategy string
+
+const (
+	// VersioningURLPath uses URL path versioning (e.g., /v1/users).
+	VersioningURLPath VersioningStrategy = "url_path"
+
+	// VersioningHeader uses HTTP header versioning (e.g., Accept: application/vnd.api.v1+json).
+	VersioningHeader VersioningStrategy = "header"
+
+	// VersioningQueryParam uses query parameter versioning (e.g., /users?version=1).
+	VersioningQueryParam VersioningStrategy = "query_param"
+)
+
+// String returns the string representation of the versioning strategy.
+func (vs VersioningStrategy) String() string {
+	return string(vs)
+}
+
+// VersionDeprecationPolicy provides version deprecation and sunset configuration.
+type VersionDeprecationPolicy struct {
+	// Sunset date (RFC 7231) — when the version will be removed
+	SunsetDate string `json:"sunset_date,omitempty"`
+
+	// Deprecation date — when the version was deprecated
+	DeprecationDate string `json:"deprecation_date,omitempty"`
+}
+
+// =============================================================================
+// Request/Response Transformation Hints
+// =============================================================================
+
+// TransformationConfig provides request/response transformation hints.
+type TransformationConfig struct {
+	// Headers to add/modify on incoming requests before forwarding to service
+	RequestHeaders map[string]string `json:"request_headers,omitempty"`
+
+	// Headers to add/modify on responses before sending to client
+	ResponseHeaders map[string]string `json:"response_headers,omitempty"`
+
+	// Headers to remove from incoming requests
+	RemoveRequestHeaders []string `json:"remove_request_headers,omitempty"`
+
+	// Headers to remove from responses
+	RemoveResponseHeaders []string `json:"remove_response_headers,omitempty"`
 }

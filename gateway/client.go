@@ -35,12 +35,15 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -55,12 +58,13 @@ import (
 // For production use, gateways should implement their own logic tailored to their
 // specific architecture, error handling, and performance requirements.
 type Client struct {
-	registry      farp.SchemaRegistry
-	manifestCache map[string]*farp.SchemaManifest // key: instanceID
-	schemaCache   map[string]any                  // key: hash
-	merger        *merger.Merger
-	httpClient    *http.Client
-	mu            sync.RWMutex
+	registry          farp.SchemaRegistry
+	manifestCache     map[string]*farp.SchemaManifest // key: instanceID
+	schemaCache       map[string]any                  // key: hash
+	merger            *merger.Merger
+	httpClient        *http.Client
+	mu                sync.RWMutex
+	currentRoutesHash string // hash of the current computed route table
 }
 
 // ClientOption configures a Client.
@@ -123,8 +127,15 @@ func NewClientWithConfig(registry farp.SchemaRegistry, mergerConfig merger.Merge
 	return c
 }
 
-// WatchServices watches for service registrations and schema updates
-// onChange is called whenever services are added, updated, or removed.
+// WatchServices watches for service registrations and schema updates.
+// onChange is called only when the computed route table actually changes,
+// preventing unnecessary route remounts that cause intermittent 404s.
+//
+// Route change detection uses two strategies:
+//  1. Fast path: compare RoutesChecksum from manifests (if services provide it)
+//  2. Fallback: compute route table hash locally and compare
+//
+// For atomic route swaps, use WatchServicesAtomic instead.
 func (c *Client) WatchServices(ctx context.Context, serviceName string, onChange func([]ServiceRoute)) error {
 	// Initial load
 	manifests, err := c.registry.ListManifests(ctx, serviceName)
@@ -134,13 +145,32 @@ func (c *Client) WatchServices(ctx context.Context, serviceName string, onChange
 
 	// Convert initial manifests to routes
 	routes := c.ConvertToRoutes(manifests)
+
+	c.mu.Lock()
+	c.currentRoutesHash = computeRouteTableHash(routes)
+	c.mu.Unlock()
+
 	onChange(routes)
 
 	// Watch for changes
 	return c.registry.WatchManifests(ctx, serviceName, func(event *farp.ManifestEvent) {
-		// Update manifest cache
 		c.mu.Lock()
 
+		// Fast path: check RoutesChecksum if available on updated events
+		if event.Type == farp.EventTypeUpdated {
+			if old, ok := c.manifestCache[event.Manifest.InstanceID]; ok {
+				if old.RoutesChecksum != "" &&
+					event.Manifest.RoutesChecksum != "" &&
+					old.RoutesChecksum == event.Manifest.RoutesChecksum {
+					// Route table unchanged — update cache but skip remounting
+					c.manifestCache[event.Manifest.InstanceID] = event.Manifest
+					c.mu.Unlock()
+					return
+				}
+			}
+		}
+
+		// Update manifest cache
 		switch event.Type {
 		case farp.EventTypeAdded, farp.EventTypeUpdated:
 			c.manifestCache[event.Manifest.InstanceID] = event.Manifest
@@ -156,10 +186,192 @@ func (c *Client) WatchServices(ctx context.Context, serviceName string, onChange
 
 		c.mu.Unlock()
 
-		// Convert to routes and notify
+		// Convert to routes
 		routes := c.ConvertToRoutes(manifests)
+
+		// Fallback: compute local route table hash and compare
+		newHash := computeRouteTableHash(routes)
+
+		c.mu.Lock()
+		if newHash == c.currentRoutesHash {
+			// Routes unchanged — skip remounting
+			c.mu.Unlock()
+			return
+		}
+		c.currentRoutesHash = newHash
+		c.mu.Unlock()
+
+		// Routes changed — notify gateway to remount
 		onChange(routes)
 	})
+}
+
+// WatchServicesAtomic watches for service changes and uses the RouteUpdateHandler
+// for atomic route swaps. This prevents intermittent 404s by staging new routes
+// before removing old ones.
+//
+// The handler's PrepareRoutes is called first for validation. If it succeeds,
+// CommitRoutes is called to atomically swap the route table. If commit fails,
+// RollbackRoutes is called.
+func (c *Client) WatchServicesAtomic(ctx context.Context, serviceName string, handler farp.RouteUpdateHandler) error {
+	// Initial load
+	manifests, err := c.registry.ListManifests(ctx, serviceName)
+	if err != nil {
+		return fmt.Errorf("failed to list initial manifests: %w", err)
+	}
+
+	// Convert initial manifests to route descriptors
+	routes := c.convertToRouteDescriptors(manifests)
+
+	if err := handler.PrepareRoutes(routes); err != nil {
+		return fmt.Errorf("failed to prepare initial routes: %w", err)
+	}
+
+	if err := handler.CommitRoutes(); err != nil {
+		_ = handler.RollbackRoutes()
+		return fmt.Errorf("failed to commit initial routes: %w", err)
+	}
+
+	c.mu.Lock()
+	c.currentRoutesHash = computeRouteDescriptorHash(routes)
+	c.mu.Unlock()
+
+	// Watch for changes
+	return c.registry.WatchManifests(ctx, serviceName, func(event *farp.ManifestEvent) {
+		c.mu.Lock()
+
+		// Fast path: check RoutesChecksum
+		if event.Type == farp.EventTypeUpdated {
+			if old, ok := c.manifestCache[event.Manifest.InstanceID]; ok {
+				if old.RoutesChecksum != "" &&
+					event.Manifest.RoutesChecksum != "" &&
+					old.RoutesChecksum == event.Manifest.RoutesChecksum {
+					c.manifestCache[event.Manifest.InstanceID] = event.Manifest
+					c.mu.Unlock()
+					return
+				}
+			}
+		}
+
+		// Update manifest cache
+		switch event.Type {
+		case farp.EventTypeAdded, farp.EventTypeUpdated:
+			c.manifestCache[event.Manifest.InstanceID] = event.Manifest
+		case farp.EventTypeRemoved:
+			delete(c.manifestCache, event.Manifest.InstanceID)
+		}
+
+		manifests := make([]*farp.SchemaManifest, 0, len(c.manifestCache))
+		for _, m := range c.manifestCache {
+			manifests = append(manifests, m)
+		}
+
+		c.mu.Unlock()
+
+		// Convert to route descriptors
+		routes := c.convertToRouteDescriptors(manifests)
+		newHash := computeRouteDescriptorHash(routes)
+
+		c.mu.Lock()
+		if newHash == c.currentRoutesHash {
+			c.mu.Unlock()
+			return
+		}
+		c.currentRoutesHash = newHash
+		c.mu.Unlock()
+
+		// Atomic swap: prepare → commit → rollback on failure
+		if err := handler.PrepareRoutes(routes); err != nil {
+			// Validation failed, skip this update
+			return
+		}
+
+		if err := handler.CommitRoutes(); err != nil {
+			_ = handler.RollbackRoutes()
+		}
+	})
+}
+
+// convertToRouteDescriptors converts manifests to RouteDescriptor list.
+// If manifests include a RouteTable, use it directly. Otherwise, fall back
+// to converting schemas.
+func (c *Client) convertToRouteDescriptors(manifests []*farp.SchemaManifest) []farp.RouteDescriptor {
+	var routes []farp.RouteDescriptor
+
+	for _, manifest := range manifests {
+		// Prefer pre-computed route table if available
+		if len(manifest.RouteTable) > 0 {
+			routes = append(routes, manifest.RouteTable...)
+			continue
+		}
+
+		// Fallback: convert ServiceRoutes to RouteDescriptors
+		serviceRoutes := c.ConvertToRoutes([]*farp.SchemaManifest{manifest})
+		for _, sr := range serviceRoutes {
+			routes = append(routes, farp.RouteDescriptor{
+				Path:     sr.Path,
+				Methods:  sr.Methods,
+				Protocol: "rest",
+				Metadata: sr.Metadata,
+			})
+		}
+	}
+
+	return routes
+}
+
+// computeRouteTableHash computes a SHA256 hash of the ServiceRoute table.
+func computeRouteTableHash(routes []ServiceRoute) string {
+	type hashEntry struct {
+		Path    string   `json:"p"`
+		Methods []string `json:"m"`
+	}
+
+	entries := make([]hashEntry, len(routes))
+	for i, r := range routes {
+		methods := make([]string, len(r.Methods))
+		copy(methods, r.Methods)
+		sort.Strings(methods)
+		entries[i] = hashEntry{Path: r.Path, Methods: methods}
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Path < entries[j].Path
+	})
+
+	data, _ := json.Marshal(entries)
+	hash := sha256.Sum256(data)
+
+	return hex.EncodeToString(hash[:])
+}
+
+// computeRouteDescriptorHash computes a SHA256 hash of RouteDescriptor list.
+func computeRouteDescriptorHash(routes []farp.RouteDescriptor) string {
+	type hashEntry struct {
+		Path     string   `json:"p"`
+		Methods  []string `json:"m"`
+		Protocol string   `json:"pr"`
+	}
+
+	entries := make([]hashEntry, len(routes))
+	for i, r := range routes {
+		methods := make([]string, len(r.Methods))
+		copy(methods, r.Methods)
+		sort.Strings(methods)
+		entries[i] = hashEntry{Path: r.Path, Methods: methods, Protocol: r.Protocol}
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Path != entries[j].Path {
+			return entries[i].Path < entries[j].Path
+		}
+		return entries[i].Protocol < entries[j].Protocol
+	})
+
+	data, _ := json.Marshal(entries)
+	hash := sha256.Sum256(data)
+
+	return hex.EncodeToString(hash[:])
 }
 
 // ConvertToRoutes converts service manifests to gateway routes
@@ -231,6 +443,9 @@ type ServiceRoute struct {
 
 	// ServiceVersion is the version of the backend service
 	ServiceVersion string
+
+	// InstanceID is the ID of the service instance that produced this route
+	InstanceID string
 }
 
 // fetchSchema fetches a schema based on its location.
@@ -385,6 +600,7 @@ func (c *Client) convertOpenAPIToRoutes(manifest *farp.SchemaManifest, schema an
 				HealthURL:      baseURL + manifest.Endpoints.Health,
 				ServiceName:    manifest.ServiceName,
 				ServiceVersion: manifest.ServiceVersion,
+				InstanceID:     manifest.InstanceID,
 				Metadata: map[string]any{
 					"schema_type": "openapi",
 				},
@@ -422,6 +638,7 @@ func (c *Client) convertAsyncAPIToRoutes(manifest *farp.SchemaManifest, schema a
 			HealthURL:      baseURL + manifest.Endpoints.Health,
 			ServiceName:    manifest.ServiceName,
 			ServiceVersion: manifest.ServiceVersion,
+			InstanceID:     manifest.InstanceID,
 			Metadata: map[string]any{
 				"schema_type": "asyncapi",
 				"protocol":    "websocket",
@@ -458,6 +675,7 @@ func (c *Client) convertGraphQLToRoutes(manifest *farp.SchemaManifest, schema an
 		HealthURL:      baseURL + manifest.Endpoints.Health,
 		ServiceName:    manifest.ServiceName,
 		ServiceVersion: manifest.ServiceVersion,
+		InstanceID:     manifest.InstanceID,
 		Metadata: map[string]any{
 			"schema_type": "graphql",
 		},
