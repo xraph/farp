@@ -196,6 +196,13 @@ linters:
           - errcheck
           - dupl
           - gosec
+      # Exclude gosec false positives.
+      - linters:
+          - gosec
+        text: "G704:"
+      - linters:
+          - gosec
+        text: "G117:"
       # Exclude some `staticcheck` messages.
       - linters:
           - staticcheck
