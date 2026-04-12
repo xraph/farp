@@ -40,12 +40,12 @@ func TestIsCompatible(t *testing.T) {
 		},
 		{
 			name:            "same major, same minor",
-			manifestVersion: "1.1.0",
+			manifestVersion: "1.2.0",
 			want:            true,
 		},
 		{
 			name:            "same major, higher minor",
-			manifestVersion: "1.2.0",
+			manifestVersion: "1.3.0",
 			want:            false,
 		},
 		{
@@ -100,15 +100,15 @@ func TestProtocolConstants(t *testing.T) {
 		t.Errorf("ProtocolMajor = %v, want 1", ProtocolMajor)
 	}
 
-	if ProtocolMinor != 1 {
-		t.Errorf("ProtocolMinor = %v, want 1", ProtocolMinor)
+	if ProtocolMinor != 2 {
+		t.Errorf("ProtocolMinor = %v, want 2", ProtocolMinor)
 	}
 
 	if ProtocolPatch != 0 {
 		t.Errorf("ProtocolPatch = %v, want 0", ProtocolPatch)
 	}
 
-	expectedVersion := "1.1.0"
+	expectedVersion := "1.2.0"
 	if ProtocolVersion != expectedVersion {
 		t.Errorf("ProtocolVersion = %v, want %v", ProtocolVersion, expectedVersion)
 	}
