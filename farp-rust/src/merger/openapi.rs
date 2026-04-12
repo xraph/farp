@@ -320,7 +320,9 @@ fn apply_mount_strategy(path: &str, manifest: &SchemaManifest) -> String {
         MountStrategy::Versioned => {
             format!(
                 "/{}/{}{}",
-                manifest.service_name.to_lowercase(), manifest.service_version.to_lowercase(), path
+                manifest.service_name.to_lowercase(),
+                manifest.service_version.to_lowercase(),
+                path
             )
         }
         MountStrategy::Custom => {

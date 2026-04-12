@@ -486,6 +486,7 @@ func TestFederatedHandler_AfterRestart(t *testing.T) {
 	}
 
 	client.mu.Lock()
+
 	for _, m := range manifests {
 		client.manifestCache[m.InstanceID] = m
 		for _, sd := range m.Schemas {
@@ -494,6 +495,7 @@ func TestFederatedHandler_AfterRestart(t *testing.T) {
 			}
 		}
 	}
+
 	client.mu.Unlock()
 
 	// Mount federated handler

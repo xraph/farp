@@ -431,7 +431,9 @@ pub fn calculate_routes_checksum(manifest: &SchemaManifest) -> Result<String> {
         .collect();
 
     sorted_routes.sort_by(|a, b| {
-        a.path.cmp(&b.path).then_with(|| a.protocol.cmp(&b.protocol))
+        a.path
+            .cmp(&b.path)
+            .then_with(|| a.protocol.cmp(&b.protocol))
     });
 
     let canonical = RouteCanonical {
@@ -447,8 +449,7 @@ pub fn calculate_routes_checksum(manifest: &SchemaManifest) -> Result<String> {
         asyncapi: manifest.endpoints.asyncapi.clone().unwrap_or_default(),
     };
 
-    let data = serde_json::to_vec(&canonical)
-        .map_err(Error::Serialization)?;
+    let data = serde_json::to_vec(&canonical).map_err(Error::Serialization)?;
 
     let mut hasher = Sha256::new();
     hasher.update(&data);

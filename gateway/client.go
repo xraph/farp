@@ -194,6 +194,7 @@ func (c *Client) WatchServices(ctx context.Context, serviceName string, onChange
 		newHash := computeRouteTableHash(routes)
 
 		c.mu.Lock()
+
 		if newHash == c.currentRoutesHash {
 			// Routes unchanged — skip remounting
 			c.mu.Unlock()
@@ -278,6 +279,7 @@ func (c *Client) WatchServicesAtomic(ctx context.Context, serviceName string, ha
 		newHash := computeRouteDescriptorHash(routes)
 
 		c.mu.Lock()
+
 		if newHash == c.currentRoutesHash {
 			c.mu.Unlock()
 
@@ -488,7 +490,7 @@ func (c *Client) fetchSchema(ctx context.Context, descriptor *farp.SchemaDescrip
 		}
 
 		// Execute request
-		resp, err := c.httpClient.Do(req) //nolint:gosec // URL comes from service manifest, not user input
+		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch schema from URL %s: %w", descriptor.Location.URL, err)
 		}
