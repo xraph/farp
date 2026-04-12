@@ -1233,6 +1233,7 @@ func TestClient_MultiSchemaManifest(t *testing.T) {
 		switch schemaType {
 		case "openapi":
 			hasREST = true
+
 			if route.Path != "/api/users" {
 				t.Errorf("REST route path = %v, want /api/users", route.Path)
 			}
@@ -1242,6 +1243,7 @@ func TestClient_MultiSchemaManifest(t *testing.T) {
 			}
 		case "asyncapi":
 			hasWebSocket = true
+
 			if route.Path != "/ws/events" {
 				t.Errorf("WebSocket route path = %v, want /ws/events", route.Path)
 			}

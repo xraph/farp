@@ -511,6 +511,7 @@ func TestMerger_Merge_CollapseServiceTags(t *testing.T) {
 	// Should have exactly 1 tag: "TwinOS"
 	if len(result.Spec.Tags) != 1 {
 		t.Errorf("expected 1 collapsed tag, got %d", len(result.Spec.Tags))
+
 		for _, tag := range result.Spec.Tags {
 			t.Logf("  tag: %s", tag.Name)
 		}
@@ -527,6 +528,7 @@ func TestMerger_Merge_CollapseServiceTags(t *testing.T) {
 			if op == nil {
 				continue
 			}
+
 			if len(op.Tags) != 1 || op.Tags[0] != "TwinOS" {
 				t.Errorf("operation at %s should have tags [TwinOS], got %v", path, op.Tags)
 			}
@@ -575,6 +577,7 @@ func TestMerger_Merge_CollapseServiceTags_MultipleServices(t *testing.T) {
 	// Should have exactly 2 tags: "TwinOS" and "Portal"
 	if len(result.Spec.Tags) != 2 {
 		t.Errorf("expected 2 collapsed tags, got %d", len(result.Spec.Tags))
+
 		for _, tag := range result.Spec.Tags {
 			t.Logf("  tag: %s", tag.Name)
 		}
@@ -588,6 +591,7 @@ func TestMerger_Merge_CollapseServiceTags_MultipleServices(t *testing.T) {
 	if !tagNames["TwinOS"] {
 		t.Error("expected 'TwinOS' tag")
 	}
+
 	if !tagNames["Portal"] {
 		t.Error("expected 'Portal' tag")
 	}

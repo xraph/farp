@@ -20,6 +20,7 @@ func splitPath(p string) []string {
 	if p == "" {
 		return nil
 	}
+
 	return strings.Split(p, "/")
 }
 
@@ -55,6 +56,7 @@ func matchParts(pattern, path []string) bool {
 			if !matchSegment(seg, path[pa]) {
 				return false
 			}
+
 			pi++
 			pa++
 
@@ -62,6 +64,7 @@ func matchParts(pattern, path []string) bool {
 			if seg != path[pa] {
 				return false
 			}
+
 			pi++
 			pa++
 		}
@@ -79,20 +82,16 @@ func matchParts(pattern, path []string) bool {
 // containing inline wildcards (e.g., "openapi*" matches "openapi.json").
 func matchSegment(pattern, segment string) bool {
 	// Simple prefix/suffix matching for inline *
-	if strings.HasSuffix(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
+	if prefix, ok := strings.CutSuffix(pattern, "*"); ok {
 		return strings.HasPrefix(segment, prefix)
 	}
 
-	if strings.HasPrefix(pattern, "*") {
-		suffix := strings.TrimPrefix(pattern, "*")
+	if suffix, ok := strings.CutPrefix(pattern, "*"); ok {
 		return strings.HasSuffix(segment, suffix)
 	}
 
 	// * in the middle: split and check prefix + suffix
-	if idx := strings.Index(pattern, "*"); idx >= 0 {
-		prefix := pattern[:idx]
-		suffix := pattern[idx+1:]
+	if prefix, suffix, ok := strings.Cut(pattern, "*"); ok {
 		return strings.HasPrefix(segment, prefix) && strings.HasSuffix(segment, suffix) && len(segment) >= len(prefix)+len(suffix)
 	}
 
@@ -108,6 +107,7 @@ func ShouldIncludePath(path string, rules []PathRule) bool {
 			return rule.Action == PathRuleInclude
 		}
 	}
+
 	return true // default: include
 }
 
@@ -132,5 +132,6 @@ func BuildPathRules(excludeInternal bool, userRules []PathRule) []PathRule {
 	if !excludeInternal {
 		return userRules
 	}
+
 	return append(InternalPathRules(), userRules...)
 }

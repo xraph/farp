@@ -398,6 +398,7 @@ func TestProvider_GenerateDescriptor_AppError(t *testing.T) {
 // testAppWithAsyncAPISchema implements both Application and AsyncAPISchemaProvider.
 type testAppWithAsyncAPISchema struct {
 	testApp
+
 	baseSchema map[string]any
 }
 

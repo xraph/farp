@@ -362,7 +362,7 @@ func GetSecuritySchemeSummary(schemes map[string]SecurityScheme) string {
 
 	for schemeType, names := range byType {
 		sort.Strings(names)
-		summarySb346.WriteString(fmt.Sprintf("  %s: %v\n", schemeType, names))
+		fmt.Fprintf(&summarySb346, "  %s: %v\n", schemeType, names)
 	}
 
 	summary += summarySb346.String()

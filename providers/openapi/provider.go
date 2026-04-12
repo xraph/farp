@@ -110,9 +110,7 @@ func (p *Provider) buildPaths(routes any) map[string]any {
 			if existing, ok := paths[rd.Path]; ok {
 				// Merge methods into existing path item
 				if existingMap, ok := existing.(map[string]any); ok {
-					for k, v := range pathItem {
-						existingMap[k] = v
-					}
+					maps.Copy(existingMap, pathItem)
 				}
 			} else {
 				paths[rd.Path] = pathItem
@@ -130,9 +128,7 @@ func (p *Provider) buildPaths(routes any) map[string]any {
 				pathItem := p.routeDescriptorToPathItem(rd)
 				if existing, ok := paths[rd.Path]; ok {
 					if existingMap, ok := existing.(map[string]any); ok {
-						for k, v := range pathItem {
-							existingMap[k] = v
-						}
+						maps.Copy(existingMap, pathItem)
 					}
 				} else {
 					paths[rd.Path] = pathItem
@@ -171,9 +167,11 @@ func (p *Provider) routeDescriptorToPathItem(rd farp.RouteDescriptor) map[string
 			if summary, ok := rd.Metadata["summary"]; ok {
 				operation["summary"] = summary
 			}
+
 			if description, ok := rd.Metadata["description"]; ok {
 				operation["description"] = description
 			}
+
 			if tags, ok := rd.Metadata["tags"]; ok {
 				operation["tags"] = tags
 			}
@@ -197,6 +195,7 @@ func (p *Provider) tryConvertToRouteDescriptor(item any) (farp.RouteDescriptor, 
 		} else {
 			return rd, false
 		}
+
 		if methods, ok := v["methods"].([]any); ok {
 			for _, m := range methods {
 				if ms, ok := m.(string); ok {
@@ -204,9 +203,11 @@ func (p *Provider) tryConvertToRouteDescriptor(item any) (farp.RouteDescriptor, 
 				}
 			}
 		}
+
 		if opID, ok := v["operation_id"].(string); ok {
 			rd.OperationID = opID
 		}
+
 		return rd, rd.Path != ""
 	}
 

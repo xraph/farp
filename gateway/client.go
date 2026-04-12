@@ -165,6 +165,7 @@ func (c *Client) WatchServices(ctx context.Context, serviceName string, onChange
 					// Route table unchanged — update cache but skip remounting
 					c.manifestCache[event.Manifest.InstanceID] = event.Manifest
 					c.mu.Unlock()
+
 					return
 				}
 			}
@@ -196,8 +197,10 @@ func (c *Client) WatchServices(ctx context.Context, serviceName string, onChange
 		if newHash == c.currentRoutesHash {
 			// Routes unchanged — skip remounting
 			c.mu.Unlock()
+
 			return
 		}
+
 		c.currentRoutesHash = newHash
 		c.mu.Unlock()
 
@@ -229,6 +232,7 @@ func (c *Client) WatchServicesAtomic(ctx context.Context, serviceName string, ha
 
 	if err := handler.CommitRoutes(); err != nil {
 		_ = handler.RollbackRoutes()
+
 		return fmt.Errorf("failed to commit initial routes: %w", err)
 	}
 
@@ -248,6 +252,7 @@ func (c *Client) WatchServicesAtomic(ctx context.Context, serviceName string, ha
 					old.RoutesChecksum == event.Manifest.RoutesChecksum {
 					c.manifestCache[event.Manifest.InstanceID] = event.Manifest
 					c.mu.Unlock()
+
 					return
 				}
 			}
@@ -275,8 +280,10 @@ func (c *Client) WatchServicesAtomic(ctx context.Context, serviceName string, ha
 		c.mu.Lock()
 		if newHash == c.currentRoutesHash {
 			c.mu.Unlock()
+
 			return
 		}
+
 		c.currentRoutesHash = newHash
 		c.mu.Unlock()
 
@@ -302,6 +309,7 @@ func (c *Client) convertToRouteDescriptors(manifests []*farp.SchemaManifest) []f
 		// Prefer pre-computed route table if available
 		if len(manifest.RouteTable) > 0 {
 			routes = append(routes, manifest.RouteTable...)
+
 			continue
 		}
 
@@ -339,7 +347,7 @@ func computeRouteTableHash(routes []ServiceRoute) string {
 		return entries[i].Path < entries[j].Path
 	})
 
-	data, _ := json.Marshal(entries)
+	data, _ := json.Marshal(entries) //nolint:errchkjson // simple struct cannot fail to marshal
 	hash := sha256.Sum256(data)
 
 	return hex.EncodeToString(hash[:])
@@ -365,10 +373,11 @@ func computeRouteDescriptorHash(routes []farp.RouteDescriptor) string {
 		if entries[i].Path != entries[j].Path {
 			return entries[i].Path < entries[j].Path
 		}
+
 		return entries[i].Protocol < entries[j].Protocol
 	})
 
-	data, _ := json.Marshal(entries)
+	data, _ := json.Marshal(entries) //nolint:errchkjson // simple struct cannot fail to marshal
 	hash := sha256.Sum256(data)
 
 	return hex.EncodeToString(hash[:])
@@ -479,7 +488,7 @@ func (c *Client) fetchSchema(ctx context.Context, descriptor *farp.SchemaDescrip
 		}
 
 		// Execute request
-		resp, err := c.httpClient.Do(req)
+		resp, err := c.httpClient.Do(req) //nolint:gosec // URL comes from service manifest, not user input
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch schema from URL %s: %w", descriptor.Location.URL, err)
 		}
@@ -849,7 +858,7 @@ func computeManifestsHash(cache map[string]*farp.SchemaManifest) string {
 		return entries[i].ID < entries[j].ID
 	})
 
-	data, _ := json.Marshal(entries)
+	data, _ := json.Marshal(entries) //nolint:errchkjson // simple struct cannot fail to marshal
 	hash := sha256.Sum256(data)
 
 	return hex.EncodeToString(hash[:])

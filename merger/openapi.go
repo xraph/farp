@@ -295,6 +295,7 @@ func parsePathItem(item map[string]any) PathItem {
 	if v, ok := item["summary"].(string); ok {
 		pathItem.Summary = v
 	}
+
 	if v, ok := item["description"].(string); ok {
 		pathItem.Description = v
 	}
@@ -303,24 +304,31 @@ func parsePathItem(item map[string]any) PathItem {
 	if op, ok := item["get"].(map[string]any); ok {
 		pathItem.Get = parseOperation(op)
 	}
+
 	if op, ok := item["post"].(map[string]any); ok {
 		pathItem.Post = parseOperation(op)
 	}
+
 	if op, ok := item["put"].(map[string]any); ok {
 		pathItem.Put = parseOperation(op)
 	}
+
 	if op, ok := item["delete"].(map[string]any); ok {
 		pathItem.Delete = parseOperation(op)
 	}
+
 	if op, ok := item["patch"].(map[string]any); ok {
 		pathItem.Patch = parseOperation(op)
 	}
+
 	if op, ok := item["options"].(map[string]any); ok {
 		pathItem.Options = parseOperation(op)
 	}
+
 	if op, ok := item["head"].(map[string]any); ok {
 		pathItem.Head = parseOperation(op)
 	}
+
 	if op, ok := item["trace"].(map[string]any); ok {
 		pathItem.Trace = parseOperation(op)
 	}
@@ -429,12 +437,15 @@ func parseComponents(components map[string]any) *Components {
 				if desc, ok := respMap["description"].(string); ok {
 					r.Description = desc
 				}
+
 				if content, ok := respMap["content"].(map[string]any); ok {
 					r.Content = parseMediaTypes(content)
 				}
+
 				if headers, ok := respMap["headers"].(map[string]any); ok {
 					r.Headers = parseHeaders(headers)
 				}
+
 				result.Responses[name] = r
 			}
 		}
@@ -448,21 +459,27 @@ func parseComponents(components map[string]any) *Components {
 				if v, ok := paramMap["name"].(string); ok {
 					p.Name = v
 				}
+
 				if v, ok := paramMap["in"].(string); ok {
 					p.In = v
 				}
+
 				if v, ok := paramMap["description"].(string); ok {
 					p.Description = v
 				}
+
 				if v, ok := paramMap["required"].(bool); ok {
 					p.Required = v
 				}
+
 				if v, ok := paramMap["schema"].(map[string]any); ok {
 					p.Schema = v
 				}
+
 				if v, ok := paramMap["example"]; ok {
 					p.Example = v
 				}
+
 				result.Parameters[name] = p
 			}
 		}
@@ -476,12 +493,15 @@ func parseComponents(components map[string]any) *Components {
 				if desc, ok := bodyMap["description"].(string); ok {
 					rb.Description = desc
 				}
+
 				if req, ok := bodyMap["required"].(bool); ok {
 					rb.Required = req
 				}
+
 				if content, ok := bodyMap["content"].(map[string]any); ok {
 					rb.Content = parseMediaTypes(content)
 				}
+
 				result.RequestBodies[name] = rb
 			}
 		}
@@ -500,24 +520,31 @@ func parseComponents(components map[string]any) *Components {
 				if t, ok := schemeMap["type"].(string); ok {
 					sec.Type = t
 				}
+
 				if desc, ok := schemeMap["description"].(string); ok {
 					sec.Description = desc
 				}
+
 				if n, ok := schemeMap["name"].(string); ok {
 					sec.Name = n
 				}
+
 				if in, ok := schemeMap["in"].(string); ok {
 					sec.In = in
 				}
+
 				if s, ok := schemeMap["scheme"].(string); ok {
 					sec.Scheme = s
 				}
+
 				if bf, ok := schemeMap["bearerFormat"].(string); ok {
 					sec.BearerFormat = bf
 				}
+
 				if oidc, ok := schemeMap["openIdConnectUrl"].(string); ok {
 					sec.OpenIdConnectURL = oidc
 				}
+
 				result.SecuritySchemes[name] = sec
 			}
 		}
@@ -555,27 +582,35 @@ func parseParameters(params []any) []Parameter {
 		if !ok {
 			continue
 		}
+
 		param := Parameter{}
 		if v, ok := paramMap["name"].(string); ok {
 			param.Name = v
 		}
+
 		if v, ok := paramMap["in"].(string); ok {
 			param.In = v
 		}
+
 		if v, ok := paramMap["description"].(string); ok {
 			param.Description = v
 		}
+
 		if v, ok := paramMap["required"].(bool); ok {
 			param.Required = v
 		}
+
 		if v, ok := paramMap["schema"].(map[string]any); ok {
 			param.Schema = v
 		}
+
 		if v, ok := paramMap["example"]; ok {
 			param.Example = v
 		}
+
 		result = append(result, param)
 	}
+
 	return result
 }
 
@@ -587,17 +622,21 @@ func parseRequestBody(body map[string]any) *RequestBody {
 	if desc, ok := body["description"].(string); ok {
 		rb.Description = desc
 	}
+
 	if req, ok := body["required"].(bool); ok {
 		rb.Required = req
 	}
+
 	if content, ok := body["content"].(map[string]any); ok {
 		rb.Content = parseMediaTypes(content)
 	}
+
 	for key, value := range body {
 		if strings.HasPrefix(key, "x-") {
 			rb.Extensions[key] = value
 		}
 	}
+
 	return rb
 }
 
@@ -609,13 +648,16 @@ func parseMediaTypes(content map[string]any) map[string]MediaType {
 		if !ok {
 			continue
 		}
+
 		m := MediaType{}
 		if schema, ok := mtMap["schema"].(map[string]any); ok {
 			m.Schema = schema
 		}
+
 		if example, ok := mtMap["example"]; ok {
 			m.Example = example
 		}
+
 		if examples, ok := mtMap["examples"].(map[string]any); ok {
 			m.Examples = make(map[string]Example, len(examples))
 			for name, ex := range examples {
@@ -624,21 +666,27 @@ func parseMediaTypes(content map[string]any) map[string]MediaType {
 					if v, ok := exMap["summary"].(string); ok {
 						e.Summary = v
 					}
+
 					if v, ok := exMap["description"].(string); ok {
 						e.Description = v
 					}
+
 					if v, ok := exMap["value"]; ok {
 						e.Value = v
 					}
+
 					if v, ok := exMap["externalValue"].(string); ok {
 						e.ExternalValue = v
 					}
+
 					m.Examples[name] = e
 				}
 			}
 		}
+
 		result[mediaType] = m
 	}
+
 	return result
 }
 
@@ -650,18 +698,23 @@ func parseResponses(responses map[string]any) map[string]Response {
 		if !ok {
 			continue
 		}
+
 		r := Response{}
 		if desc, ok := respMap["description"].(string); ok {
 			r.Description = desc
 		}
+
 		if content, ok := respMap["content"].(map[string]any); ok {
 			r.Content = parseMediaTypes(content)
 		}
+
 		if headers, ok := respMap["headers"].(map[string]any); ok {
 			r.Headers = parseHeaders(headers)
 		}
+
 		result[status] = r
 	}
+
 	return result
 }
 
@@ -673,15 +726,19 @@ func parseHeaders(headers map[string]any) map[string]Header {
 		if !ok {
 			continue
 		}
+
 		header := Header{}
 		if desc, ok := hMap["description"].(string); ok {
 			header.Description = desc
 		}
+
 		if schema, ok := hMap["schema"].(map[string]any); ok {
 			header.Schema = schema
 		}
+
 		result[name] = header
 	}
+
 	return result
 }
 
@@ -693,23 +750,29 @@ func parseSecurity(security []any) []map[string][]string {
 		if !ok {
 			continue
 		}
+
 		req := make(map[string][]string, len(sMap))
 		for name, scopes := range sMap {
 			scopeArr, ok := scopes.([]any)
 			if !ok {
 				req[name] = []string{}
+
 				continue
 			}
+
 			scopeStrs := make([]string, 0, len(scopeArr))
 			for _, scope := range scopeArr {
 				if str, ok := scope.(string); ok {
 					scopeStrs = append(scopeStrs, str)
 				}
 			}
+
 			req[name] = scopeStrs
 		}
+
 		result = append(result, req)
 	}
+
 	return result
 }
 
@@ -776,6 +839,7 @@ func PrefixComponentNames(components *Components, prefix string) *Components {
 	// Prefix schema names and rewrite $ref strings within schemas
 	for name, schema := range components.Schemas {
 		prefixedName := prefix + "_" + name
+
 		rewritten := RewriteRefs(schema, prefix)
 		if rewrittenMap, ok := rewritten.(map[string]any); ok {
 			result.Schemas[prefixedName] = rewrittenMap
@@ -829,6 +893,7 @@ func RewriteRefs(value any, prefix string) any {
 				result[key] = RewriteRefs(val, prefix)
 			}
 		}
+
 		return result
 
 	case []any:
@@ -836,6 +901,7 @@ func RewriteRefs(value any, prefix string) any {
 		for i, item := range v {
 			result[i] = RewriteRefs(item, prefix)
 		}
+
 		return result
 
 	default:
@@ -844,7 +910,7 @@ func RewriteRefs(value any, prefix string) any {
 }
 
 // rewriteRefString rewrites a single $ref string if it points to a local component.
-// "#/components/schemas/Foo" → "#/components/schemas/prefix_Foo"
+// "#/components/schemas/Foo" → "#/components/schemas/prefix_Foo".
 func rewriteRefString(ref, prefix string) string {
 	componentPrefixes := []string{
 		"#/components/schemas/",
@@ -855,8 +921,7 @@ func rewriteRefString(ref, prefix string) string {
 	}
 
 	for _, cp := range componentPrefixes {
-		if strings.HasPrefix(ref, cp) {
-			name := strings.TrimPrefix(ref, cp)
+		if name, ok := strings.CutPrefix(ref, cp); ok {
 			return cp + prefix + "_" + name
 		}
 	}

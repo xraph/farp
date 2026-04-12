@@ -378,6 +378,7 @@ func CalculateRoutesChecksum(manifest *SchemaManifest) (string, error) {
 		if sortedRoutes[i].Path != sortedRoutes[j].Path {
 			return sortedRoutes[i].Path < sortedRoutes[j].Path
 		}
+
 		return sortedRoutes[i].Protocol < sortedRoutes[j].Protocol
 	})
 

@@ -577,7 +577,7 @@ type WebhookConfig struct {
 	GatewayWebhook string `json:"gateway_webhook,omitempty"`
 
 	// Webhook secret for HMAC signature verification
-	Secret string `json:"secret,omitempty"`
+	Secret string `json:"secret,omitempty"` //nolint:gosec // Secret is a webhook HMAC secret, not a hardcoded credential
 
 	// Event types service wants to receive from gateway
 	SubscribeEvents []WebhookEventType `json:"subscribe_events,omitempty"`

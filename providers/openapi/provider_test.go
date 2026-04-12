@@ -449,6 +449,7 @@ func TestProvider_Generate_WithRouteDescriptors(t *testing.T) {
 		op, ok := userByIDPath[method].(map[string]any)
 		if !ok {
 			t.Errorf("/users/{id} should have a %s operation", method)
+
 			continue
 		}
 
@@ -524,6 +525,7 @@ func TestProvider_Generate_WithRouteDescriptors_MethodMerging(t *testing.T) {
 // testAppWithOpenAPISchema implements both Application and OpenAPISchemaProvider.
 type testAppWithOpenAPISchema struct {
 	testApp
+
 	baseSchema map[string]any
 }
 

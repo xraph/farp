@@ -486,10 +486,12 @@ func rewritePathItemRefs(item PathItem, prefix string) PathItem {
 		if schema == nil {
 			return nil
 		}
+
 		rewritten := RewriteRefs(schema, prefix)
 		if m, ok := rewritten.(map[string]any); ok {
 			return m
 		}
+
 		return schema
 	}
 
@@ -504,14 +506,17 @@ func rewritePathItemRefs(item PathItem, prefix string) PathItem {
 		if op == nil {
 			return
 		}
+
 		for code, resp := range op.Responses {
 			rewriteMediaTypes(resp.Content)
 			op.Responses[code] = resp
 		}
+
 		for i, param := range op.Parameters {
 			param.Schema = rewriteSchema(param.Schema)
 			op.Parameters[i] = param
 		}
+
 		if op.RequestBody != nil {
 			rewriteMediaTypes(op.RequestBody.Content)
 		}

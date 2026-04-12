@@ -90,10 +90,13 @@ func (h *FederatedSchemaHandler) ensureFresh(r *http.Request) error {
 	currentHash := h.client.GetManifestsHash()
 
 	h.cache.mu.RLock()
+
 	if h.cache.manifestsHash == currentHash && h.cache.result != nil {
 		h.cache.mu.RUnlock()
+
 		return nil
 	}
+
 	h.cache.mu.RUnlock()
 
 	// Re-merge needed
@@ -151,6 +154,7 @@ func (h *FederatedSchemaHandler) ensureFresh(r *http.Request) error {
 func (h *FederatedSchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+
 		return
 	}
 
@@ -171,8 +175,8 @@ func (h *FederatedSchemaHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 
-		errResp, _ := json.Marshal(map[string]string{"error": err.Error()})
-		w.Write(errResp)
+		errResp, _ := json.Marshal(map[string]string{"error": err.Error()}) //nolint:errchkjson // error response marshaling cannot fail
+		_, _ = w.Write(errResp)
 
 		return
 	}
@@ -207,13 +211,13 @@ func (h *FederatedSchemaHandler) serveJSON(w http.ResponseWriter, data []byte) {
 
 	if len(data) == 0 {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"error":"no schemas available for this protocol"}`))
+		_, _ = w.Write([]byte(`{"error":"no schemas available for this protocol"}`))
 
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 // federatedSummary is the JSON structure for the /summary endpoint.
@@ -257,7 +261,7 @@ func (h *FederatedSchemaHandler) serveSummary(w http.ResponseWriter) {
 	w.Header().Set("X-Farp-Federated", "true")
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(summary)
+	_ = json.NewEncoder(w).Encode(summary) //nolint:errchkjson // best-effort HTTP response write
 }
 
 // Invalidate forces the next request to rebuild the federated schemas.

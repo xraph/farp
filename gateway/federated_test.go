@@ -121,6 +121,7 @@ func TestFederatedHandler_OpenAPIEndpoint(t *testing.T) {
 
 	// Verify it's valid OpenAPI JSON
 	body, _ := io.ReadAll(resp.Body)
+
 	var spec merger.OpenAPISpec
 	if err := json.Unmarshal(body, &spec); err != nil {
 		t.Fatalf("Failed to unmarshal OpenAPI JSON: %v", err)

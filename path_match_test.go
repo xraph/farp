@@ -165,6 +165,7 @@ func TestBuildPathRules(t *testing.T) {
 	if ShouldIncludePath("/_farp/manifest", rules) {
 		t.Error("/_farp/manifest should be excluded with internal rules")
 	}
+
 	if ShouldIncludePath("/_/health", rules) {
 		t.Error("/_/health should be excluded with internal rules")
 	}
