@@ -122,6 +122,7 @@ impl Merger {
     }
 
     /// Creates a new merger with default configuration
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Self {
         Self::new(MergerConfig::default())
     }

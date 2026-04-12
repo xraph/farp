@@ -15,6 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         merged_description: "Combined API from User, Product, and Order services".to_string(),
         merged_version: "1.0.0".to_string(),
         include_service_tags: true,
+        collapse_service_tags: false,
         sort_output: true,
         servers: vec![Server {
             url: "https://api.example.com".to_string(),
