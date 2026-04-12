@@ -287,3 +287,31 @@ jobs:
             fi
           done
 
+      - name: Create discovery sub-module tags
+        if: steps.check_discovery.outputs.exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.get_tag.outputs.tag }}"
+          if [ "$TAG" = "v0.0.0" ]; then
+            echo "No release tag found, skipping sub-module tagging"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+
+          for dir in discovery discovery/redis discovery/consul discovery/etcd discovery/kubernetes discovery/mdns; do
+            if [ -f "$dir/go.mod" ]; then
+              SUB_TAG="${dir}/${TAG}"
+              if git rev-parse "$SUB_TAG" >/dev/null 2>&1; then
+                echo "Tag $SUB_TAG already exists, skipping"
+              else
+                echo "Creating tag $SUB_TAG"
+                git tag "$SUB_TAG"
+                git push origin "$SUB_TAG"
+              fi
+            fi
+          done
+
