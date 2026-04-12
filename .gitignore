@@ -38,6 +38,7 @@ temp/
 # Release artifacts
 dist/
 release/
+node_modules/
 
 # Documentation generation
 docs/.generated/
