@@ -228,12 +228,12 @@ func (m *MDNSDiscovery) Register(_ context.Context, instance discovery.ServiceIn
 	}
 
 	server, err := zeroconf.Register(
-		instance.ID,                   // instance name
-		m.config.ServiceType,          // service type
-		m.config.Domain,               // domain
-		port,                          // port
-		txt,                           // TXT records
-		ifaces,                        // interfaces
+		instance.ID,          // instance name
+		m.config.ServiceType, // service type
+		m.config.Domain,      // domain
+		port,                 // port
+		txt,                  // TXT records
+		ifaces,               // interfaces
 	)
 	if err != nil {
 		return fmt.Errorf("%w: mDNS registration failed: %w", farp.ErrRegistrationFailed, err)

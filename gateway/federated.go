@@ -15,12 +15,12 @@ import (
 // The manifestsHash detects when cached data is stale.
 type FederatedSchemaCache struct {
 	mu            sync.RWMutex
-	manifestsHash string                       // composite hash of all manifest checksums
-	result        *merger.MultiProtocolResult   // cached merge result
-	openAPIJSON   []byte                        // pre-serialized OpenAPI JSON
-	asyncAPIJSON  []byte                        // pre-serialized AsyncAPI JSON
-	grpcJSON      []byte                        // pre-serialized gRPC JSON
-	orpcJSON      []byte                        // pre-serialized oRPC JSON
+	manifestsHash string                      // composite hash of all manifest checksums
+	result        *merger.MultiProtocolResult // cached merge result
+	openAPIJSON   []byte                      // pre-serialized OpenAPI JSON
+	asyncAPIJSON  []byte                      // pre-serialized AsyncAPI JSON
+	grpcJSON      []byte                      // pre-serialized gRPC JSON
+	orpcJSON      []byte                      // pre-serialized oRPC JSON
 	lastBuilt     time.Time
 }
 
@@ -46,9 +46,9 @@ type FederatedSchemaCache struct {
 //	fedHandler := gateway.NewFederatedSchemaHandler(client)
 //	http.Handle("/_farp/federated/", http.StripPrefix("/_farp/federated", fedHandler))
 type FederatedSchemaHandler struct {
-	client    *Client
-	cache     *FederatedSchemaCache
-	basePath  string // path prefix to strip when routing, defaults to ""
+	client   *Client
+	cache    *FederatedSchemaCache
+	basePath string // path prefix to strip when routing, defaults to ""
 }
 
 // FederatedHandlerOption configures a FederatedSchemaHandler.
@@ -218,14 +218,14 @@ func (h *FederatedSchemaHandler) serveJSON(w http.ResponseWriter, data []byte) {
 
 // federatedSummary is the JSON structure for the /summary endpoint.
 type federatedSummary struct {
-	BuiltAt          string                      `json:"built_at"`
-	HasOpenAPI       bool                        `json:"has_openapi"`
-	HasAsyncAPI      bool                        `json:"has_asyncapi"`
-	HasGRPC          bool                        `json:"has_grpc"`
-	HasORPC          bool                        `json:"has_orpc"`
-	IncludedServices map[string][]string          `json:"included_services,omitempty"`
-	TotalConflicts   int                         `json:"total_conflicts"`
-	Warnings         []string                    `json:"warnings,omitempty"`
+	BuiltAt          string              `json:"built_at"`
+	HasOpenAPI       bool                `json:"has_openapi"`
+	HasAsyncAPI      bool                `json:"has_asyncapi"`
+	HasGRPC          bool                `json:"has_grpc"`
+	HasORPC          bool                `json:"has_orpc"`
+	IncludedServices map[string][]string `json:"included_services,omitempty"`
+	TotalConflicts   int                 `json:"total_conflicts"`
+	Warnings         []string            `json:"warnings,omitempty"`
 }
 
 // serveSummary writes merge metadata as JSON.

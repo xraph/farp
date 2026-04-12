@@ -55,6 +55,7 @@ func NewServiceNode(config ServiceNodeConfig) (*ServiceNode, error) {
 	manifest := farp.NewManifest(config.ServiceName, config.ServiceVersion, config.InstanceID)
 	manifest.Routing.Strategy = config.MountStrategy
 	manifest.Routing.BasePath = config.BasePath
+	manifest.Routing.PathRules = config.PathRules
 
 	// Wire endpoints from config, falling back to FARP defaults
 	manifest.Endpoints.Health = "/_farp/health"
@@ -387,6 +388,11 @@ func (n *ServiceNode) healthLoop(ctx context.Context, discovery ServiceDiscovery
 
 // pushHealthCheck sends a heartbeat with routes_checksum and handles
 // reconciliation if the gateway's state doesn't match (§17.4.1).
+//
+// Gateway restart recovery: if the heartbeat returns an error (e.g. 404
+// because the gateway lost all state), we re-register with the full
+// manifest so the gateway can rebuild its route table immediately
+// without needing to fetch the manifest back from the service.
 func (n *ServiceNode) pushHealthCheck(ctx context.Context, pushDisc *PushDiscovery) {
 	n.mu.RLock()
 	expectedChecksum := n.manifest.RoutesChecksum
@@ -398,22 +404,36 @@ func (n *ServiceNode) pushHealthCheck(ctx context.Context, pushDisc *PushDiscove
 		expectedChecksum,
 	)
 	if err != nil {
-		// Gateway unreachable — retry registration
-		n.retryRegister(ctx, pushDisc)
+		// Gateway unreachable or returned 404 (service unknown after restart).
+		// Re-register with full manifest so the gateway can rebuild immediately.
+		n.pushReRegisterWithManifest(ctx, pushDisc)
 		return
 	}
 
 	// Reconciliation: if gateway checksum doesn't match, re-register WITH
 	// manifest so the gateway can apply schemas without fetching.
 	if resp.RoutesChecksum != expectedChecksum {
-		n.mu.RLock()
-		manifest := n.manifest
-		n.mu.RUnlock()
+		n.pushReRegisterWithManifest(ctx, pushDisc)
+	}
+}
 
-		instance := n.buildInstance()
-		if _, err := pushDisc.RegisterWithManifest(ctx, instance, manifest); err != nil {
-			// Non-fatal: will retry on next heartbeat
-			_ = err
+// pushReRegisterWithManifest re-registers with the gateway, sending the
+// full manifest inline. This handles both gateway restarts (404) and
+// checksum mismatches without requiring the gateway to fetch back.
+func (n *ServiceNode) pushReRegisterWithManifest(ctx context.Context, pushDisc *PushDiscovery) {
+	n.mu.RLock()
+	manifest := n.manifest
+	n.mu.RUnlock()
+
+	instance := n.buildInstance()
+
+	for attempt := range n.config.MaxRetries {
+		if attempt > 0 {
+			time.Sleep(n.config.RetryBackoff * time.Duration(attempt))
+		}
+
+		if _, err := pushDisc.RegisterWithManifest(ctx, instance, manifest); err == nil {
+			return
 		}
 	}
 }

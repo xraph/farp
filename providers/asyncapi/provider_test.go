@@ -394,3 +394,217 @@ func TestProvider_GenerateDescriptor_AppError(t *testing.T) {
 		t.Error("expected error when app provides nil routes")
 	}
 }
+
+// testAppWithAsyncAPISchema implements both Application and AsyncAPISchemaProvider.
+type testAppWithAsyncAPISchema struct {
+	testApp
+	baseSchema map[string]any
+}
+
+func (a *testAppWithAsyncAPISchema) AsyncAPISchema() map[string]any {
+	return a.baseSchema
+}
+
+func TestProvider_Generate_WithAsyncAPISchemaProvider(t *testing.T) {
+	p := NewProvider("3.0.0", "")
+	ctx := context.Background()
+
+	app := &testAppWithAsyncAPISchema{
+		testApp: testApp{
+			name:    "notification-service",
+			version: "v1.0.0",
+			routes:  []string{"placeholder"}, // Non-nil to pass nil check
+		},
+		baseSchema: map[string]any{
+			"asyncapi": "3.0.0",
+			"info": map[string]any{
+				"title":       "Notification Events",
+				"description": "Real-time notification channels",
+			},
+			"channels": map[string]any{
+				"/ws/notifications": map[string]any{
+					"description": "User notifications channel",
+					"messages": map[string]any{
+						"notification": map[string]any{
+							"payload": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"event": map[string]any{"type": "string"},
+									"data":  map[string]any{"type": "object"},
+								},
+							},
+						},
+					},
+				},
+				"/ws/presence": map[string]any{
+					"description": "User presence channel",
+				},
+			},
+			"operations": map[string]any{
+				"onNotification": map[string]any{
+					"action":  "receive",
+					"channel": map[string]any{"$ref": "#/channels/~1ws~1notifications"},
+				},
+				"onPresence": map[string]any{
+					"action":  "receive",
+					"channel": map[string]any{"$ref": "#/channels/~1ws~1presence"},
+				},
+			},
+		},
+	}
+
+	schema, err := p.Generate(ctx, app)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	schemaMap, ok := schema.(map[string]any)
+	if !ok {
+		t.Fatal("schema should be map[string]any")
+	}
+
+	// Verify AsyncAPI version
+	if schemaMap["asyncapi"] != "3.0.0" {
+		t.Errorf("asyncapi = %v, want 3.0.0", schemaMap["asyncapi"])
+	}
+
+	// Verify info from base takes precedence
+	info := schemaMap["info"].(map[string]any)
+	if info["title"] != "Notification Events" {
+		t.Errorf("base info.title should take precedence, got %v", info["title"])
+	}
+
+	if info["description"] != "Real-time notification channels" {
+		t.Errorf("base info.description should be preserved, got %v", info["description"])
+	}
+
+	// Verify channels from base are present
+	channels, ok := schemaMap["channels"].(map[string]any)
+	if !ok {
+		t.Fatal("channels should be map[string]any")
+	}
+
+	if len(channels) != 2 {
+		t.Errorf("expected 2 channels, got %d", len(channels))
+	}
+
+	notifChannel, ok := channels["/ws/notifications"].(map[string]any)
+	if !ok {
+		t.Fatal("/ws/notifications channel should exist")
+	}
+
+	if notifChannel["description"] != "User notifications channel" {
+		t.Errorf("channel description = %v, want 'User notifications channel'", notifChannel["description"])
+	}
+
+	if _, ok := channels["/ws/presence"]; !ok {
+		t.Error("/ws/presence channel should exist")
+	}
+
+	// Verify operations from base are present
+	operations, ok := schemaMap["operations"].(map[string]any)
+	if !ok {
+		t.Fatal("operations should be map[string]any")
+	}
+
+	if len(operations) != 2 {
+		t.Errorf("expected 2 operations, got %d", len(operations))
+	}
+
+	if _, ok := operations["onNotification"]; !ok {
+		t.Error("onNotification operation should exist")
+	}
+
+	if _, ok := operations["onPresence"]; !ok {
+		t.Error("onPresence operation should exist")
+	}
+
+	// Validate the merged schema
+	if err := p.Validate(schema); err != nil {
+		t.Errorf("merged schema should pass validation: %v", err)
+	}
+}
+
+func TestProvider_Generate_BaseSchemaPreservesCustomFields(t *testing.T) {
+	p := NewProvider("3.0.0", "")
+	ctx := context.Background()
+
+	app := &testAppWithAsyncAPISchema{
+		testApp: testApp{
+			name:    "event-service",
+			version: "v1.0.0",
+			routes:  []string{"placeholder"},
+		},
+		baseSchema: map[string]any{
+			"asyncapi": "3.0.0",
+			"info": map[string]any{
+				"title":   "Event Service",
+				"version": "v1.0.0",
+			},
+			"servers": map[string]any{
+				"production": map[string]any{
+					"host":     "broker.example.com:9092",
+					"protocol": "kafka",
+				},
+			},
+			"channels": map[string]any{
+				"user.created": map[string]any{
+					"description": "User creation events",
+				},
+			},
+			"operations": map[string]any{
+				"publishUserCreated": map[string]any{
+					"action":  "send",
+					"channel": map[string]any{"$ref": "#/channels/user.created"},
+				},
+			},
+			"components": map[string]any{
+				"messages": map[string]any{
+					"UserCreated": map[string]any{
+						"payload": map[string]any{
+							"type": "object",
+						},
+					},
+				},
+			},
+			"x-custom-extension": "preserved-value",
+		},
+	}
+
+	schema, err := p.Generate(ctx, app)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	schemaMap := schema.(map[string]any)
+
+	// Servers from base should be preserved
+	servers, ok := schemaMap["servers"].(map[string]any)
+	if !ok {
+		t.Fatal("servers from base schema should be preserved")
+	}
+
+	if _, ok := servers["production"]; !ok {
+		t.Error("production server should be preserved")
+	}
+
+	// Components from base should be preserved
+	components, ok := schemaMap["components"].(map[string]any)
+	if !ok {
+		t.Fatal("components from base schema should be preserved")
+	}
+
+	messages, ok := components["messages"].(map[string]any)
+	if !ok {
+		t.Fatal("components.messages should be preserved")
+	}
+
+	if _, ok := messages["UserCreated"]; !ok {
+		t.Error("UserCreated message component should be preserved")
+	}
+
+	// Custom extension should be preserved
+	if schemaMap["x-custom-extension"] != "preserved-value" {
+		t.Errorf("x-custom-extension = %v, want 'preserved-value'", schemaMap["x-custom-extension"])
+	}
+}

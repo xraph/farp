@@ -32,9 +32,9 @@ type PushHandler struct {
 }
 
 type pushEntry struct {
-	Instance    ServiceInstance
-	Manifest    *farp.SchemaManifest
-	LastSeen    time.Time
+	Instance ServiceInstance
+	Manifest *farp.SchemaManifest
+	LastSeen time.Time
 }
 
 // NewPushHandler creates a new push registration handler.

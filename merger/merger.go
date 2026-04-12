@@ -29,6 +29,11 @@ type MergerConfig struct {
 	// Whether to include service tags in operations
 	IncludeServiceTags bool
 
+	// When true, all operations from a service are grouped under a single
+	// tag matching the service name, instead of prefixing individual tags.
+	// Takes precedence over IncludeServiceTags when both are true.
+	CollapseServiceTags bool
+
 	// Whether to sort merged content alphabetically
 	SortOutput bool
 
@@ -227,7 +232,10 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 
 			// Apply prefixes to operation IDs and tags
 			pathItem = applyOperationPrefixes(pathItem, operationIDPrefix, tagPrefix, serviceName,
-				seenOperationIDs, result)
+				m.config.CollapseServiceTags, seenOperationIDs, result)
+
+			// Rewrite $ref strings in path operations to match prefixed component names
+			pathItem = rewritePathItemRefs(pathItem, componentPrefix)
 
 			result.Spec.Paths[path] = pathItem
 			seenPaths[path] = serviceName
@@ -316,20 +324,29 @@ func (m *Merger) Merge(schemas []ServiceSchema) (*MergeResult, error) {
 		}
 
 		// Merge tags
-		for _, tag := range schema.Parsed.Tags {
-			if tagPrefix != "" && m.config.IncludeServiceTags {
-				tag.Name = tagPrefix + "_" + tag.Name
+		if m.config.CollapseServiceTags {
+			// Collapse all tags into a single service-level tag
+			serviceTag := Tag{Name: serviceName, Description: "Routes from " + serviceName}
+			if _, exists := seenTags[serviceTag.Name]; !exists {
+				seenTags[serviceTag.Name] = serviceTag
+				result.Spec.Tags = append(result.Spec.Tags, serviceTag)
 			}
-
-			if existing, exists := seenTags[tag.Name]; exists {
-				// Merge descriptions
-				if tag.Description != "" && existing.Description == "" {
-					existing.Description = tag.Description
-					seenTags[tag.Name] = existing
+		} else {
+			for _, tag := range schema.Parsed.Tags {
+				if tagPrefix != "" && m.config.IncludeServiceTags {
+					tag.Name = tagPrefix + "_" + tag.Name
 				}
-			} else {
-				seenTags[tag.Name] = tag
-				result.Spec.Tags = append(result.Spec.Tags, tag)
+
+				if existing, exists := seenTags[tag.Name]; exists {
+					// Merge descriptions
+					if tag.Description != "" && existing.Description == "" {
+						existing.Description = tag.Description
+						seenTags[tag.Name] = existing
+					}
+				} else {
+					seenTags[tag.Name] = tag
+					result.Spec.Tags = append(result.Spec.Tags, tag)
+				}
 			}
 		}
 	}
@@ -410,6 +427,7 @@ func getOperationIDPrefix(manifest *farp.SchemaManifest, config *farp.Compositio
 }
 
 func applyOperationPrefixes(item PathItem, opIDPrefix, tagPrefix, serviceName string,
+	collapseServiceTags bool,
 	seenOperationIDs map[string]string, result *MergeResult,
 ) PathItem {
 	applyToOp := func(op *Operation) {
@@ -438,8 +456,10 @@ func applyOperationPrefixes(item PathItem, opIDPrefix, tagPrefix, serviceName st
 			seenOperationIDs[op.OperationID] = serviceName
 		}
 
-		// Prefix tags
-		if tagPrefix != "" {
+		// Handle tags: collapse all to service name, or prefix individually
+		if collapseServiceTags {
+			op.Tags = []string{serviceName}
+		} else if tagPrefix != "" {
 			op.Tags = PrefixTags(op.Tags, tagPrefix)
 		}
 	}
@@ -452,6 +472,59 @@ func applyOperationPrefixes(item PathItem, opIDPrefix, tagPrefix, serviceName st
 	applyToOp(item.Options)
 	applyToOp(item.Head)
 	applyToOp(item.Trace)
+
+	return item
+}
+
+// rewritePathItemRefs rewrites $ref strings in all operations of a PathItem.
+func rewritePathItemRefs(item PathItem, prefix string) PathItem {
+	if prefix == "" {
+		return item
+	}
+
+	rewriteSchema := func(schema map[string]any) map[string]any {
+		if schema == nil {
+			return nil
+		}
+		rewritten := RewriteRefs(schema, prefix)
+		if m, ok := rewritten.(map[string]any); ok {
+			return m
+		}
+		return schema
+	}
+
+	rewriteMediaTypes := func(content map[string]MediaType) {
+		for mt, media := range content {
+			media.Schema = rewriteSchema(media.Schema)
+			content[mt] = media
+		}
+	}
+
+	rewriteOp := func(op *Operation) {
+		if op == nil {
+			return
+		}
+		for code, resp := range op.Responses {
+			rewriteMediaTypes(resp.Content)
+			op.Responses[code] = resp
+		}
+		for i, param := range op.Parameters {
+			param.Schema = rewriteSchema(param.Schema)
+			op.Parameters[i] = param
+		}
+		if op.RequestBody != nil {
+			rewriteMediaTypes(op.RequestBody.Content)
+		}
+	}
+
+	rewriteOp(item.Get)
+	rewriteOp(item.Post)
+	rewriteOp(item.Put)
+	rewriteOp(item.Delete)
+	rewriteOp(item.Patch)
+	rewriteOp(item.Options)
+	rewriteOp(item.Head)
+	rewriteOp(item.Trace)
 
 	return item
 }

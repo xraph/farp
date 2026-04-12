@@ -414,7 +414,35 @@ type RoutingConfig struct {
 
 	// API versioning strategy
 	Versioning *APIVersioningConfig `json:"versioning,omitempty"`
+
+	// Path include/exclude rules for controlling which routes are published
+	// to the gateway. Rules are evaluated in order; first match wins.
+	// Paths not matching any rule are included by default.
+	// Supports glob patterns: "*" matches one segment, "**" matches zero or more.
+	PathRules []PathRule `json:"path_rules,omitempty"`
 }
+
+// PathRule defines an include or exclude rule for API paths.
+type PathRule struct {
+	// Glob pattern to match against paths.
+	// Examples: "/api/v1/*", "/internal/**", "/health", "/api/users/*"
+	// "*" matches a single path segment, "**" matches zero or more segments.
+	Pattern string `json:"pattern"`
+
+	// Action to take when the pattern matches: "include" or "exclude".
+	Action PathRuleAction `json:"action"`
+}
+
+// PathRuleAction is the action for a path rule.
+type PathRuleAction string
+
+const (
+	// PathRuleInclude includes matching paths in published schemas.
+	PathRuleInclude PathRuleAction = "include"
+
+	// PathRuleExclude excludes matching paths from published schemas.
+	PathRuleExclude PathRuleAction = "exclude"
+)
 
 // MountStrategy defines how routes are mounted in the gateway.
 type MountStrategy string

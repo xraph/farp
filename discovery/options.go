@@ -50,6 +50,7 @@ type ServiceNodeConfig struct {
 	// Routing configuration (flows into manifest)
 	MountStrategy farp.MountStrategy
 	BasePath      string
+	PathRules     []farp.PathRule
 
 	// Routes provides route information for OpenAPI schema generation.
 	// Can be []farp.RouteDescriptor, map[string]any (OpenAPI paths), or any
@@ -144,4 +145,3 @@ func (c *GatewayNodeConfig) setDefaults() {
 		c.HeartbeatTimeout = 30 * time.Second
 	}
 }
-

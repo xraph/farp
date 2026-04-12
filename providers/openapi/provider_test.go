@@ -358,3 +358,320 @@ func TestProvider_GenerateDescriptor_AppError(t *testing.T) {
 		t.Error("expected error when app provides nil routes")
 	}
 }
+
+func TestProvider_Generate_WithRouteDescriptors(t *testing.T) {
+	p := NewProvider("3.1.0", "")
+	ctx := context.Background()
+
+	app := &testApp{
+		name:    "user-service",
+		version: "v2.0.0",
+		routes: []farp.RouteDescriptor{
+			{
+				Path:        "/users",
+				Methods:     []string{"GET", "POST"},
+				OperationID: "users",
+				Metadata: map[string]any{
+					"summary": "User operations",
+					"tags":    []string{"users"},
+				},
+			},
+			{
+				Path:        "/users/{id}",
+				Methods:     []string{"GET", "PUT", "DELETE"},
+				OperationID: "user_by_id",
+				Metadata: map[string]any{
+					"summary":     "Single user operations",
+					"description": "CRUD operations on a single user",
+				},
+			},
+			{
+				Path: "/health",
+				// No methods specified — should default to GET
+			},
+		},
+	}
+
+	schema, err := p.Generate(ctx, app)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	schemaMap, ok := schema.(map[string]any)
+	if !ok {
+		t.Fatal("schema should be map[string]any")
+	}
+
+	// Verify top-level structure
+	if schemaMap["openapi"] != "3.1.0" {
+		t.Errorf("openapi = %v, want 3.1.0", schemaMap["openapi"])
+	}
+
+	paths, ok := schemaMap["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("paths should be map[string]any")
+	}
+
+	if len(paths) != 3 {
+		t.Fatalf("expected 3 paths, got %d", len(paths))
+	}
+
+	// Verify /users path
+	usersPath, ok := paths["/users"].(map[string]any)
+	if !ok {
+		t.Fatal("/users path item should be map[string]any")
+	}
+
+	getOp, ok := usersPath["get"].(map[string]any)
+	if !ok {
+		t.Fatal("/users should have a GET operation")
+	}
+
+	if getOp["operationId"] != "get_users" {
+		t.Errorf("GET /users operationId = %v, want get_users", getOp["operationId"])
+	}
+
+	if getOp["summary"] != "User operations" {
+		t.Errorf("GET /users summary = %v, want 'User operations'", getOp["summary"])
+	}
+
+	if _, ok := usersPath["post"]; !ok {
+		t.Error("/users should have a POST operation")
+	}
+
+	// Verify /users/{id} path
+	userByIDPath, ok := paths["/users/{id}"].(map[string]any)
+	if !ok {
+		t.Fatal("/users/{id} path item should be map[string]any")
+	}
+
+	for _, method := range []string{"get", "put", "delete"} {
+		op, ok := userByIDPath[method].(map[string]any)
+		if !ok {
+			t.Errorf("/users/{id} should have a %s operation", method)
+			continue
+		}
+
+		if op["description"] != "CRUD operations on a single user" {
+			t.Errorf("%s /users/{id} description = %v, want 'CRUD operations on a single user'", method, op["description"])
+		}
+	}
+
+	// Verify /health defaults to GET when no methods specified
+	healthPath, ok := paths["/health"].(map[string]any)
+	if !ok {
+		t.Fatal("/health path item should be map[string]any")
+	}
+
+	if _, ok := healthPath["get"]; !ok {
+		t.Error("/health should default to GET when no methods specified")
+	}
+
+	// Validate the schema passes provider validation
+	if err := p.Validate(schema); err != nil {
+		t.Errorf("generated schema should pass validation: %v", err)
+	}
+}
+
+func TestProvider_Generate_WithRouteDescriptors_MethodMerging(t *testing.T) {
+	p := NewProvider("3.1.0", "")
+	ctx := context.Background()
+
+	// Two descriptors for the same path with different methods
+	app := &testApp{
+		name:    "test-service",
+		version: "v1.0.0",
+		routes: []farp.RouteDescriptor{
+			{
+				Path:        "/items",
+				Methods:     []string{"GET"},
+				OperationID: "list_items",
+			},
+			{
+				Path:        "/items",
+				Methods:     []string{"POST"},
+				OperationID: "create_item",
+			},
+		},
+	}
+
+	schema, err := p.Generate(ctx, app)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	schemaMap := schema.(map[string]any)
+	paths := schemaMap["paths"].(map[string]any)
+
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 merged path, got %d", len(paths))
+	}
+
+	itemsPath, ok := paths["/items"].(map[string]any)
+	if !ok {
+		t.Fatal("/items path item should be map[string]any")
+	}
+
+	if _, ok := itemsPath["get"]; !ok {
+		t.Error("/items should have GET after merge")
+	}
+
+	if _, ok := itemsPath["post"]; !ok {
+		t.Error("/items should have POST after merge")
+	}
+}
+
+// testAppWithOpenAPISchema implements both Application and OpenAPISchemaProvider.
+type testAppWithOpenAPISchema struct {
+	testApp
+	baseSchema map[string]any
+}
+
+func (a *testAppWithOpenAPISchema) OpenAPISchema() map[string]any {
+	return a.baseSchema
+}
+
+func TestProvider_Generate_WithOpenAPISchemaProvider(t *testing.T) {
+	p := NewProvider("3.1.0", "")
+	ctx := context.Background()
+
+	app := &testAppWithOpenAPISchema{
+		testApp: testApp{
+			name:    "user-service",
+			version: "v1.0.0",
+			routes: []farp.RouteDescriptor{
+				{
+					Path:    "/users",
+					Methods: []string{"GET"},
+				},
+			},
+		},
+		baseSchema: map[string]any{
+			"openapi": "3.1.0",
+			"info": map[string]any{
+				"title":       "User Service API",
+				"description": "Manages users",
+			},
+			"servers": []any{
+				map[string]any{"url": "https://api.example.com"},
+			},
+			"components": map[string]any{
+				"schemas": map[string]any{
+					"User": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"id":   map[string]any{"type": "string"},
+							"name": map[string]any{"type": "string"},
+						},
+					},
+				},
+			},
+			"paths": map[string]any{
+				"/admin": map[string]any{
+					"get": map[string]any{
+						"summary": "Admin endpoint from base",
+					},
+				},
+			},
+		},
+	}
+
+	schema, err := p.Generate(ctx, app)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	schemaMap := schema.(map[string]any)
+
+	// Base info should take precedence (description preserved)
+	info := schemaMap["info"].(map[string]any)
+	if info["description"] != "Manages users" {
+		t.Errorf("base schema info.description should be preserved, got %v", info["description"])
+	}
+
+	// Title from base takes precedence
+	if info["title"] != "User Service API" {
+		t.Errorf("base schema info.title should take precedence, got %v", info["title"])
+	}
+
+	// Servers from base should be present
+	servers, ok := schemaMap["servers"].([]any)
+	if !ok || len(servers) == 0 {
+		t.Error("servers from base schema should be preserved")
+	}
+
+	// Components from base should be present
+	components, ok := schemaMap["components"].(map[string]any)
+	if !ok {
+		t.Fatal("components from base schema should be preserved")
+	}
+
+	schemas, ok := components["schemas"].(map[string]any)
+	if !ok {
+		t.Fatal("components.schemas should be preserved")
+	}
+
+	if _, ok := schemas["User"]; !ok {
+		t.Error("User schema component should be preserved from base")
+	}
+
+	// Both base paths and generated paths should be present
+	paths := schemaMap["paths"].(map[string]any)
+	if _, ok := paths["/users"]; !ok {
+		t.Error("generated /users path should be present")
+	}
+
+	if _, ok := paths["/admin"]; !ok {
+		t.Error("base /admin path should be present")
+	}
+
+	// Validate the merged schema
+	if err := p.Validate(schema); err != nil {
+		t.Errorf("merged schema should pass validation: %v", err)
+	}
+}
+
+func TestProvider_Generate_WithMapRoutes(t *testing.T) {
+	p := NewProvider("3.1.0", "")
+	ctx := context.Background()
+
+	// Routes provided as a direct OpenAPI paths map
+	app := &testApp{
+		name:    "test-service",
+		version: "v1.0.0",
+		routes: map[string]any{
+			"/orders": map[string]any{
+				"get": map[string]any{
+					"summary":     "List orders",
+					"operationId": "listOrders",
+				},
+				"post": map[string]any{
+					"summary":     "Create order",
+					"operationId": "createOrder",
+				},
+			},
+		},
+	}
+
+	schema, err := p.Generate(ctx, app)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	schemaMap := schema.(map[string]any)
+	paths := schemaMap["paths"].(map[string]any)
+
+	ordersPath, ok := paths["/orders"].(map[string]any)
+	if !ok {
+		t.Fatal("/orders should exist in paths")
+	}
+
+	getOp, ok := ordersPath["get"].(map[string]any)
+	if !ok {
+		t.Fatal("/orders should have GET operation")
+	}
+
+	if getOp["operationId"] != "listOrders" {
+		t.Errorf("GET /orders operationId = %v, want listOrders", getOp["operationId"])
+	}
+}

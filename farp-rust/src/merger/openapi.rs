@@ -334,7 +334,7 @@ fn apply_mount_strategy(path: &str, manifest: &SchemaManifest) -> String {
     }
 }
 
-/// Adds prefix to component schema names
+/// Adds prefix to component schema names and rewrites $ref strings.
 pub fn prefix_component_names(components: &Components, prefix: &str) -> Components {
     if prefix.is_empty() {
         return components.clone();
@@ -344,7 +344,11 @@ pub fn prefix_component_names(components: &Components, prefix: &str) -> Componen
         schemas: components
             .schemas
             .iter()
-            .map(|(name, schema)| (format!("{prefix}_{name}"), schema.clone()))
+            .map(|(name, schema)| {
+                let mut rewritten = schema.clone();
+                rewrite_refs(&mut rewritten, prefix);
+                (format!("{prefix}_{name}"), rewritten)
+            })
             .collect(),
         responses: components
             .responses
@@ -362,8 +366,97 @@ pub fn prefix_component_names(components: &Components, prefix: &str) -> Componen
             .map(|(name, body)| (format!("{prefix}_{name}"), body.clone()))
             .collect(),
         headers: HashMap::new(),
-        security_schemes: components.security_schemes.clone(), // Don't prefix security schemes
+        security_schemes: components.security_schemes.clone(),
     }
+}
+
+/// Recursively rewrites $ref strings in a JSON value.
+/// Transforms "#/components/schemas/Foo" → "#/components/schemas/prefix_Foo".
+pub fn rewrite_refs(value: &mut serde_json::Value, prefix: &str) {
+    match value {
+        serde_json::Value::Object(map) => {
+            if let Some(serde_json::Value::String(ref_str)) = map.get("$ref") {
+                let rewritten = rewrite_ref_string(ref_str, prefix);
+                map.insert("$ref".to_string(), serde_json::Value::String(rewritten));
+            }
+            for (key, val) in map.iter_mut() {
+                if key != "$ref" {
+                    rewrite_refs(val, prefix);
+                }
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for item in arr.iter_mut() {
+                rewrite_refs(item, prefix);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn rewrite_ref_string(ref_str: &str, prefix: &str) -> String {
+    let component_prefixes = [
+        "#/components/schemas/",
+        "#/components/responses/",
+        "#/components/parameters/",
+        "#/components/requestBodies/",
+        "#/components/headers/",
+    ];
+
+    for cp in &component_prefixes {
+        if let Some(name) = ref_str.strip_prefix(cp) {
+            return format!("{cp}{prefix}_{name}");
+        }
+    }
+
+    ref_str.to_string()
+}
+
+/// Rewrites $ref strings in all operations of a PathItem.
+pub fn rewrite_path_item_refs(item: &mut PathItem, prefix: &str) {
+    if prefix.is_empty() {
+        return;
+    }
+
+    let rewrite_op = |op: &mut Option<Operation>| {
+        if let Some(operation) = op {
+            // Rewrite refs in responses
+            if let Some(ref mut responses) = operation.responses {
+                for resp in responses.values_mut() {
+                    if let Some(ref mut content) = resp.content {
+                        for media in content.values_mut() {
+                            if let Some(ref mut schema) = media.schema {
+                                rewrite_refs(schema, prefix);
+                            }
+                        }
+                    }
+                }
+            }
+            // Rewrite refs in parameters
+            for param in &mut operation.parameters {
+                if let Some(ref mut schema) = param.schema {
+                    rewrite_refs(schema, prefix);
+                }
+            }
+            // Rewrite refs in request body
+            if let Some(ref mut rb) = operation.request_body {
+                for media in rb.content.values_mut() {
+                    if let Some(ref mut schema) = media.schema {
+                        rewrite_refs(schema, prefix);
+                    }
+                }
+            }
+        }
+    };
+
+    rewrite_op(&mut item.get);
+    rewrite_op(&mut item.post);
+    rewrite_op(&mut item.put);
+    rewrite_op(&mut item.delete);
+    rewrite_op(&mut item.patch);
+    rewrite_op(&mut item.options);
+    rewrite_op(&mut item.head);
+    rewrite_op(&mut item.trace);
 }
 
 /// Applies prefixes to operation IDs and tags
@@ -372,6 +465,7 @@ pub fn apply_operation_prefixes(
     op_id_prefix: &str,
     tag_prefix: &str,
     service_name: &str,
+    collapse_service_tags: bool,
     seen_operation_ids: &mut HashMap<String, String>,
     result: &mut MergeResult,
 ) -> PathItem {
@@ -399,8 +493,10 @@ pub fn apply_operation_prefixes(
                 operation.operation_id = Some(new_id);
             }
 
-            // Prefix tags
-            if !tag_prefix.is_empty() {
+            // Handle tags: collapse all to service name, or prefix individually
+            if collapse_service_tags {
+                operation.tags = vec![service_name.to_string()];
+            } else if !tag_prefix.is_empty() {
                 operation.tags = operation
                     .tags
                     .iter()

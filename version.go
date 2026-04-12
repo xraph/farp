@@ -65,4 +65,3 @@ func IsCompatible(manifestVersion string) bool {
 	// Protocol must support manifest's minor version or higher
 	return minor <= ProtocolMinor
 }
-

@@ -858,6 +858,409 @@ func TestClient_ConvertToRoutes_CacheHit(t *testing.T) {
 	}
 }
 
+func TestClient_OpenAPISchemaToRoutes_EndToEnd(t *testing.T) {
+	registry := newMockRegistry()
+	client := NewClient(registry)
+
+	// Simulate what a service does: generate OpenAPI schema from RouteDescriptors,
+	// embed it in a manifest, then verify the gateway can extract correct routes.
+	openAPISchema := map[string]any{
+		"openapi": "3.1.0",
+		"info": map[string]any{
+			"title":   "Order Service",
+			"version": "v2.0.0",
+		},
+		"servers": []any{
+			map[string]any{"url": "https://orders.internal:8443"},
+		},
+		"paths": map[string]any{
+			"/orders": map[string]any{
+				"get": map[string]any{
+					"operationId": "listOrders",
+					"summary":     "List all orders",
+				},
+				"post": map[string]any{
+					"operationId": "createOrder",
+					"summary":     "Create an order",
+				},
+			},
+			"/orders/{id}": map[string]any{
+				"get": map[string]any{
+					"operationId": "getOrder",
+				},
+				"put": map[string]any{
+					"operationId": "updateOrder",
+				},
+				"delete": map[string]any{
+					"operationId": "deleteOrder",
+				},
+			},
+			"/orders/{id}/items": map[string]any{
+				"get": map[string]any{
+					"operationId": "listOrderItems",
+				},
+			},
+		},
+	}
+
+	manifest := farp.NewManifest("order-service", "v2.0.0", "order-inst-1")
+	manifest.Endpoints.Health = "/health"
+	manifest.AddSchema(farp.SchemaDescriptor{
+		Type:         farp.SchemaTypeOpenAPI,
+		SpecVersion:  "3.1.0",
+		Location:     farp.SchemaLocation{Type: farp.LocationTypeInline},
+		ContentType:  "application/json",
+		Hash:         "openapi-hash-001",
+		Size:         2048,
+		InlineSchema: openAPISchema,
+	})
+
+	routes := client.ConvertToRoutes([]*farp.SchemaManifest{manifest})
+
+	if len(routes) != 3 {
+		t.Fatalf("expected 3 routes, got %d", len(routes))
+	}
+
+	// Build a lookup by path for deterministic assertions
+	routeByPath := make(map[string]ServiceRoute)
+	for _, r := range routes {
+		routeByPath[r.Path] = r
+	}
+
+	// Verify /orders route
+	ordersRoute, ok := routeByPath["/orders"]
+	if !ok {
+		t.Fatal("expected route for /orders")
+	}
+
+	if len(ordersRoute.Methods) != 2 {
+		t.Errorf("/orders should have 2 methods, got %d", len(ordersRoute.Methods))
+	}
+
+	// Base URL should come from servers array
+	if ordersRoute.TargetURL != "https://orders.internal:8443/orders" {
+		t.Errorf("/orders TargetURL = %v, want https://orders.internal:8443/orders", ordersRoute.TargetURL)
+	}
+
+	if ordersRoute.HealthURL != "https://orders.internal:8443/health" {
+		t.Errorf("/orders HealthURL = %v, want https://orders.internal:8443/health", ordersRoute.HealthURL)
+	}
+
+	if ordersRoute.ServiceName != "order-service" {
+		t.Errorf("ServiceName = %v, want order-service", ordersRoute.ServiceName)
+	}
+
+	if ordersRoute.ServiceVersion != "v2.0.0" {
+		t.Errorf("ServiceVersion = %v, want v2.0.0", ordersRoute.ServiceVersion)
+	}
+
+	if ordersRoute.InstanceID != "order-inst-1" {
+		t.Errorf("InstanceID = %v, want order-inst-1", ordersRoute.InstanceID)
+	}
+
+	if ordersRoute.Metadata["schema_type"] != "openapi" {
+		t.Errorf("metadata schema_type = %v, want openapi", ordersRoute.Metadata["schema_type"])
+	}
+
+	// Verify /orders/{id} route has 3 methods
+	orderByIDRoute, ok := routeByPath["/orders/{id}"]
+	if !ok {
+		t.Fatal("expected route for /orders/{id}")
+	}
+
+	if len(orderByIDRoute.Methods) != 3 {
+		t.Errorf("/orders/{id} should have 3 methods, got %d", len(orderByIDRoute.Methods))
+	}
+
+	// Verify /orders/{id}/items route
+	itemsRoute, ok := routeByPath["/orders/{id}/items"]
+	if !ok {
+		t.Fatal("expected route for /orders/{id}/items")
+	}
+
+	if len(itemsRoute.Methods) != 1 {
+		t.Errorf("/orders/{id}/items should have 1 method, got %d", len(itemsRoute.Methods))
+	}
+}
+
+func TestClient_AsyncAPISchemaToRoutes_EndToEnd(t *testing.T) {
+	registry := newMockRegistry()
+	client := NewClient(registry)
+
+	// Simulate an AsyncAPI service with channels (WebSocket endpoints)
+	asyncAPISchema := map[string]any{
+		"asyncapi": "3.0.0",
+		"info": map[string]any{
+			"title":   "Chat Service",
+			"version": "v1.0.0",
+		},
+		"channels": map[string]any{
+			"/ws/chat": map[string]any{
+				"description": "Real-time chat messages",
+				"messages": map[string]any{
+					"chatMessage": map[string]any{
+						"payload": map[string]any{"type": "object"},
+					},
+				},
+			},
+			"/ws/presence": map[string]any{
+				"description": "User presence updates",
+			},
+			"/ws/typing": map[string]any{
+				"description": "Typing indicators",
+			},
+		},
+		"operations": map[string]any{
+			"onChat": map[string]any{
+				"action":  "receive",
+				"channel": map[string]any{"$ref": "#/channels/~1ws~1chat"},
+			},
+		},
+	}
+
+	manifest := farp.NewManifest("chat-service", "v1.0.0", "chat-inst-1")
+	manifest.Endpoints.Health = "/health"
+	manifest.Instance = &farp.InstanceMetadata{
+		Address: "chat-service.internal:9090",
+	}
+	manifest.AddSchema(farp.SchemaDescriptor{
+		Type:         farp.SchemaTypeAsyncAPI,
+		SpecVersion:  "3.0.0",
+		Location:     farp.SchemaLocation{Type: farp.LocationTypeInline},
+		ContentType:  "application/json",
+		Hash:         "asyncapi-hash-001",
+		Size:         1024,
+		InlineSchema: asyncAPISchema,
+	})
+
+	routes := client.ConvertToRoutes([]*farp.SchemaManifest{manifest})
+
+	if len(routes) != 3 {
+		t.Fatalf("expected 3 routes (one per channel), got %d", len(routes))
+	}
+
+	// All AsyncAPI routes should be WEBSOCKET
+	for _, route := range routes {
+		if len(route.Methods) != 1 || route.Methods[0] != "WEBSOCKET" {
+			t.Errorf("route %s should have WEBSOCKET method, got %v", route.Path, route.Methods)
+		}
+
+		if route.Metadata["schema_type"] != "asyncapi" {
+			t.Errorf("route %s metadata.schema_type = %v, want asyncapi", route.Path, route.Metadata["schema_type"])
+		}
+
+		if route.Metadata["protocol"] != "websocket" {
+			t.Errorf("route %s metadata.protocol = %v, want websocket", route.Path, route.Metadata["protocol"])
+		}
+
+		if route.ServiceName != "chat-service" {
+			t.Errorf("route %s ServiceName = %v, want chat-service", route.Path, route.ServiceName)
+		}
+
+		// Base URL should come from instance address
+		expectedBase := "http://chat-service.internal:9090"
+		if route.HealthURL != expectedBase+"/health" {
+			t.Errorf("route %s HealthURL = %v, want %s/health", route.Path, route.HealthURL, expectedBase)
+		}
+	}
+}
+
+func TestClient_OpenAPIRoutes_BaseURL_Priority(t *testing.T) {
+	registry := newMockRegistry()
+
+	tests := []struct {
+		name        string
+		schema      map[string]any
+		schemaDesc  farp.SchemaDescriptor
+		instance    *farp.InstanceMetadata
+		wantBaseURL string
+	}{
+		{
+			name: "servers array takes priority",
+			schema: map[string]any{
+				"openapi": "3.1.0",
+				"servers": []any{
+					map[string]any{"url": "https://api.example.com"},
+				},
+				"paths": map[string]any{"/test": map[string]any{"get": map[string]any{}}},
+			},
+			schemaDesc: farp.SchemaDescriptor{
+				Type:        farp.SchemaTypeOpenAPI,
+				SpecVersion: "3.1.0",
+				Location:    farp.SchemaLocation{Type: farp.LocationTypeInline},
+				ContentType: "application/json",
+				Hash:        "hash1",
+				Size:        100,
+			},
+			instance:    &farp.InstanceMetadata{Address: "instance.local:8080"},
+			wantBaseURL: "https://api.example.com",
+		},
+		{
+			name: "instance address used when no servers",
+			schema: map[string]any{
+				"openapi": "3.1.0",
+				"paths":   map[string]any{"/test": map[string]any{"get": map[string]any{}}},
+			},
+			schemaDesc: farp.SchemaDescriptor{
+				Type:        farp.SchemaTypeOpenAPI,
+				SpecVersion: "3.1.0",
+				Location:    farp.SchemaLocation{Type: farp.LocationTypeInline},
+				ContentType: "application/json",
+				Hash:        "hash2",
+				Size:        100,
+			},
+			instance:    &farp.InstanceMetadata{Address: "instance.local:9090"},
+			wantBaseURL: "http://instance.local:9090",
+		},
+		{
+			name: "instance address used when no servers or location URL",
+			schema: map[string]any{
+				"openapi": "3.1.0",
+				"paths":   map[string]any{"/test": map[string]any{"get": map[string]any{}}},
+			},
+			schemaDesc: farp.SchemaDescriptor{
+				Type:         farp.SchemaTypeOpenAPI,
+				SpecVersion:  "3.1.0",
+				Location:     farp.SchemaLocation{Type: farp.LocationTypeInline},
+				ContentType:  "application/json",
+				Hash:         "hash3",
+				Size:         100,
+				InlineSchema: nil, // Will be set below
+			},
+			instance:    &farp.InstanceMetadata{Address: "my-service.local:3000"},
+			wantBaseURL: "http://my-service.local:3000",
+		},
+		{
+			name: "fallback to service name",
+			schema: map[string]any{
+				"openapi": "3.1.0",
+				"paths":   map[string]any{"/test": map[string]any{"get": map[string]any{}}},
+			},
+			schemaDesc: farp.SchemaDescriptor{
+				Type:         farp.SchemaTypeOpenAPI,
+				SpecVersion:  "3.1.0",
+				Location:     farp.SchemaLocation{Type: farp.LocationTypeInline},
+				ContentType:  "application/json",
+				Hash:         "hash4",
+				Size:         100,
+				InlineSchema: nil,
+			},
+			instance:    nil,
+			wantBaseURL: "http://priority-svc:8080",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewClient(registry)
+
+			manifest := farp.NewManifest("priority-svc", "v1.0.0", "inst-"+tt.name)
+			manifest.Endpoints.Health = "/health"
+			manifest.Instance = tt.instance
+
+			desc := tt.schemaDesc
+			desc.InlineSchema = tt.schema
+
+			manifest.AddSchema(desc)
+
+			routes := client.ConvertToRoutes([]*farp.SchemaManifest{manifest})
+			if len(routes) != 1 {
+				t.Fatalf("expected 1 route, got %d", len(routes))
+			}
+
+			expectedTarget := tt.wantBaseURL + "/test"
+			if routes[0].TargetURL != expectedTarget {
+				t.Errorf("TargetURL = %v, want %v", routes[0].TargetURL, expectedTarget)
+			}
+		})
+	}
+}
+
+func TestClient_MultiSchemaManifest(t *testing.T) {
+	registry := newMockRegistry()
+	client := NewClient(registry)
+
+	// Manifest with both OpenAPI and AsyncAPI schemas
+	manifest := farp.NewManifest("multi-service", "v1.0.0", "multi-inst-1")
+	manifest.Endpoints.Health = "/health"
+
+	// OpenAPI schema (REST endpoints)
+	manifest.AddSchema(farp.SchemaDescriptor{
+		Type:        farp.SchemaTypeOpenAPI,
+		SpecVersion: "3.1.0",
+		Location:    farp.SchemaLocation{Type: farp.LocationTypeInline},
+		ContentType: "application/json",
+		Hash:        "openapi-multi-hash",
+		Size:        512,
+		InlineSchema: map[string]any{
+			"openapi": "3.1.0",
+			"paths": map[string]any{
+				"/api/users": map[string]any{
+					"get":  map[string]any{},
+					"post": map[string]any{},
+				},
+			},
+		},
+	})
+
+	// AsyncAPI schema (WebSocket channels)
+	manifest.AddSchema(farp.SchemaDescriptor{
+		Type:        farp.SchemaTypeAsyncAPI,
+		SpecVersion: "3.0.0",
+		Location:    farp.SchemaLocation{Type: farp.LocationTypeInline},
+		ContentType: "application/json",
+		Hash:        "asyncapi-multi-hash",
+		Size:        512,
+		InlineSchema: map[string]any{
+			"asyncapi": "3.0.0",
+			"channels": map[string]any{
+				"/ws/events": map[string]any{},
+			},
+		},
+	})
+
+	routes := client.ConvertToRoutes([]*farp.SchemaManifest{manifest})
+
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes (1 REST + 1 WebSocket), got %d", len(routes))
+	}
+
+	var hasREST, hasWebSocket bool
+
+	for _, route := range routes {
+		schemaType, _ := route.Metadata["schema_type"].(string)
+
+		switch schemaType {
+		case "openapi":
+			hasREST = true
+			if route.Path != "/api/users" {
+				t.Errorf("REST route path = %v, want /api/users", route.Path)
+			}
+
+			if len(route.Methods) != 2 {
+				t.Errorf("REST route should have 2 methods, got %d", len(route.Methods))
+			}
+		case "asyncapi":
+			hasWebSocket = true
+			if route.Path != "/ws/events" {
+				t.Errorf("WebSocket route path = %v, want /ws/events", route.Path)
+			}
+
+			if len(route.Methods) != 1 || route.Methods[0] != "WEBSOCKET" {
+				t.Errorf("WebSocket route methods = %v, want [WEBSOCKET]", route.Methods)
+			}
+		}
+	}
+
+	if !hasREST {
+		t.Error("expected a REST route from OpenAPI schema")
+	}
+
+	if !hasWebSocket {
+		t.Error("expected a WebSocket route from AsyncAPI schema")
+	}
+}
+
 func TestClient_WatchServices_ListError(t *testing.T) {
 	// Create a custom registry for testing error paths
 	errorRegistry := &errorMockRegistry{error: errors.New("list error")}

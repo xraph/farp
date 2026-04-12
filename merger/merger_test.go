@@ -302,6 +302,146 @@ func createTestManifest(serviceName string, version string, instanceID string) *
 	return manifest
 }
 
+func TestMerge_RefRewriting(t *testing.T) {
+	merger := NewMerger(DefaultMergerConfig())
+
+	manifest := createTestManifest("user-service", "v1.0.0", "inst-1")
+	schema := map[string]any{
+		"openapi": "3.1.0",
+		"info":    map[string]any{"title": "User Service", "version": "1.0.0"},
+		"paths": map[string]any{
+			"/users": map[string]any{
+				"get": map[string]any{
+					"operationId": "listUsers",
+					"responses": map[string]any{
+						"200": map[string]any{
+							"description": "Success",
+							"content": map[string]any{
+								"application/json": map[string]any{
+									"schema": map[string]any{
+										"$ref": "#/components/schemas/UserList",
+									},
+								},
+							},
+						},
+					},
+				},
+				"post": map[string]any{
+					"operationId": "createUser",
+					"requestBody": map[string]any{
+						"content": map[string]any{
+							"application/json": map[string]any{
+								"schema": map[string]any{
+									"$ref": "#/components/schemas/CreateUserRequest",
+								},
+							},
+						},
+					},
+					"responses": map[string]any{
+						"201": map[string]any{
+							"description": "Created",
+							"content": map[string]any{
+								"application/json": map[string]any{
+									"schema": map[string]any{
+										"$ref": "#/components/schemas/User",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"components": map[string]any{
+			"schemas": map[string]any{
+				"User": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"id":   map[string]any{"type": "string"},
+						"name": map[string]any{"type": "string"},
+					},
+				},
+				"UserList": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"items": map[string]any{
+							"type": "array",
+							"items": map[string]any{
+								"$ref": "#/components/schemas/User",
+							},
+						},
+					},
+				},
+				"CreateUserRequest": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name": map[string]any{"type": "string"},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := merger.Merge([]ServiceSchema{
+		{Manifest: manifest, Schema: schema},
+	})
+	if err != nil {
+		t.Fatalf("Merge failed: %v", err)
+	}
+
+	// Component names should be prefixed
+	if _, ok := result.Spec.Components.Schemas["user-service_User"]; !ok {
+		t.Error("expected prefixed component 'user-service_User'")
+	}
+
+	if _, ok := result.Spec.Components.Schemas["User"]; ok {
+		t.Error("unprefixed component 'User' should not exist")
+	}
+
+	// $ref inside components should be rewritten (UserList references User)
+	userList, ok := result.Spec.Components.Schemas["user-service_UserList"]
+	if !ok {
+		t.Fatal("expected prefixed component 'user-service_UserList'")
+	}
+
+	items, _ := userList["properties"].(map[string]any)
+	itemsArr, _ := items["items"].(map[string]any)
+	itemsItems, _ := itemsArr["items"].(map[string]any)
+	ref, _ := itemsItems["$ref"].(string)
+
+	if ref != "#/components/schemas/user-service_User" {
+		t.Errorf("$ref in component schema not rewritten: got %q, want %q",
+			ref, "#/components/schemas/user-service_User")
+	}
+
+	// $ref in path operations should be rewritten
+	for path, pathItem := range result.Spec.Paths {
+		if pathItem.Get != nil {
+			for _, resp := range pathItem.Get.Responses {
+				for _, media := range resp.Content {
+					if refVal, ok := media.Schema["$ref"]; ok {
+						refStr, _ := refVal.(string)
+						if refStr == "#/components/schemas/UserList" {
+							t.Errorf("$ref in GET %s response not rewritten: still %q", path, refStr)
+						}
+					}
+				}
+			}
+		}
+
+		if pathItem.Post != nil && pathItem.Post.RequestBody != nil {
+			for _, media := range pathItem.Post.RequestBody.Content {
+				if refVal, ok := media.Schema["$ref"]; ok {
+					refStr, _ := refVal.(string)
+					if refStr == "#/components/schemas/CreateUserRequest" {
+						t.Errorf("$ref in POST %s requestBody not rewritten: still %q", path, refStr)
+					}
+				}
+			}
+		}
+	}
+}
+
 func createTestOpenAPISchema(serviceName, path string) map[string]any {
 	return map[string]any{
 		"openapi": "3.1.0",
@@ -318,6 +458,138 @@ func createTestOpenAPISchema(serviceName, path string) map[string]any {
 				},
 			},
 		},
+	}
+}
+
+func TestMerger_Merge_CollapseServiceTags(t *testing.T) {
+	config := DefaultMergerConfig()
+	config.CollapseServiceTags = true
+	m := NewMerger(config)
+
+	// Create a schema with multiple tags (simulating different modules)
+	manifest := createTestManifest("TwinOS", "v1.0.0", "inst-1")
+	schema := map[string]any{
+		"openapi": "3.1.0",
+		"info":    map[string]any{"title": "TwinOS", "version": "1.0.0"},
+		"paths": map[string]any{
+			"/api/v1/agents": map[string]any{
+				"get": map[string]any{
+					"operationId": "listAgents",
+					"tags":        []any{"Agents"},
+					"summary":     "List agents",
+				},
+			},
+			"/api/v1/query/execute": map[string]any{
+				"post": map[string]any{
+					"operationId": "executeQuery",
+					"tags":        []any{"Query"},
+					"summary":     "Execute query",
+				},
+			},
+			"/api/v1/projects": map[string]any{
+				"get": map[string]any{
+					"operationId": "listProjects",
+					"tags":        []any{"Projects"},
+					"summary":     "List projects",
+				},
+			},
+		},
+		"tags": []any{
+			map[string]any{"name": "Agents", "description": "Agent management"},
+			map[string]any{"name": "Query", "description": "Query execution"},
+			map[string]any{"name": "Projects", "description": "Project management"},
+		},
+	}
+
+	result, err := m.Merge([]ServiceSchema{
+		{Manifest: manifest, Schema: schema},
+	})
+	if err != nil {
+		t.Fatalf("Merge failed: %v", err)
+	}
+
+	// Should have exactly 1 tag: "TwinOS"
+	if len(result.Spec.Tags) != 1 {
+		t.Errorf("expected 1 collapsed tag, got %d", len(result.Spec.Tags))
+		for _, tag := range result.Spec.Tags {
+			t.Logf("  tag: %s", tag.Name)
+		}
+	}
+
+	if result.Spec.Tags[0].Name != "TwinOS" {
+		t.Errorf("expected collapsed tag name 'TwinOS', got '%s'", result.Spec.Tags[0].Name)
+	}
+
+	// All operations should have tag "TwinOS"
+	for path, pathItem := range result.Spec.Paths {
+		ops := []*Operation{pathItem.Get, pathItem.Post, pathItem.Put, pathItem.Delete}
+		for _, op := range ops {
+			if op == nil {
+				continue
+			}
+			if len(op.Tags) != 1 || op.Tags[0] != "TwinOS" {
+				t.Errorf("operation at %s should have tags [TwinOS], got %v", path, op.Tags)
+			}
+		}
+	}
+}
+
+func TestMerger_Merge_CollapseServiceTags_MultipleServices(t *testing.T) {
+	config := DefaultMergerConfig()
+	config.CollapseServiceTags = true
+	m := NewMerger(config)
+
+	manifest1 := createTestManifest("TwinOS", "v1.0.0", "inst-1")
+	schema1 := map[string]any{
+		"openapi": "3.1.0",
+		"info":    map[string]any{"title": "TwinOS", "version": "1.0.0"},
+		"paths": map[string]any{
+			"/api/agents": map[string]any{
+				"get": map[string]any{"operationId": "listAgents", "tags": []any{"Agents"}},
+			},
+		},
+		"tags": []any{map[string]any{"name": "Agents"}},
+	}
+
+	manifest2 := createTestManifest("Portal", "v1.0.0", "inst-2")
+	manifest2.ServiceName = "Portal"
+	schema2 := map[string]any{
+		"openapi": "3.1.0",
+		"info":    map[string]any{"title": "Portal", "version": "1.0.0"},
+		"paths": map[string]any{
+			"/api/users": map[string]any{
+				"get": map[string]any{"operationId": "listUsers", "tags": []any{"Users"}},
+			},
+		},
+		"tags": []any{map[string]any{"name": "Users"}},
+	}
+
+	result, err := m.Merge([]ServiceSchema{
+		{Manifest: manifest1, Schema: schema1},
+		{Manifest: manifest2, Schema: schema2},
+	})
+	if err != nil {
+		t.Fatalf("Merge failed: %v", err)
+	}
+
+	// Should have exactly 2 tags: "TwinOS" and "Portal"
+	if len(result.Spec.Tags) != 2 {
+		t.Errorf("expected 2 collapsed tags, got %d", len(result.Spec.Tags))
+		for _, tag := range result.Spec.Tags {
+			t.Logf("  tag: %s", tag.Name)
+		}
+	}
+
+	tagNames := make(map[string]bool)
+	for _, tag := range result.Spec.Tags {
+		tagNames[tag.Name] = true
+	}
+
+	if !tagNames["TwinOS"] {
+		t.Error("expected 'TwinOS' tag")
+	}
+	if !tagNames["Portal"] {
+		t.Error("expected 'Portal' tag")
 	}
 }
 

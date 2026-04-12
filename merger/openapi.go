@@ -292,25 +292,49 @@ func parsePathItem(item map[string]any) PathItem {
 		Extensions: make(map[string]any),
 	}
 
+	if v, ok := item["summary"].(string); ok {
+		pathItem.Summary = v
+	}
+	if v, ok := item["description"].(string); ok {
+		pathItem.Description = v
+	}
+
 	// Parse operations
 	if op, ok := item["get"].(map[string]any); ok {
 		pathItem.Get = parseOperation(op)
 	}
-
 	if op, ok := item["post"].(map[string]any); ok {
 		pathItem.Post = parseOperation(op)
 	}
-
 	if op, ok := item["put"].(map[string]any); ok {
 		pathItem.Put = parseOperation(op)
 	}
-
 	if op, ok := item["delete"].(map[string]any); ok {
 		pathItem.Delete = parseOperation(op)
 	}
-
 	if op, ok := item["patch"].(map[string]any); ok {
 		pathItem.Patch = parseOperation(op)
+	}
+	if op, ok := item["options"].(map[string]any); ok {
+		pathItem.Options = parseOperation(op)
+	}
+	if op, ok := item["head"].(map[string]any); ok {
+		pathItem.Head = parseOperation(op)
+	}
+	if op, ok := item["trace"].(map[string]any); ok {
+		pathItem.Trace = parseOperation(op)
+	}
+
+	// Parse path-level parameters.
+	if params, ok := item["parameters"].([]any); ok {
+		pathItem.Parameters = parseParameters(params)
+	}
+
+	// Parse extensions.
+	for key, value := range item {
+		if strings.HasPrefix(key, "x-") {
+			pathItem.Extensions[key] = value
+		}
 	}
 
 	return pathItem
@@ -336,11 +360,42 @@ func parseOperation(op map[string]any) *Operation {
 	// Parse tags
 	if tags, ok := op["tags"].([]any); ok {
 		operation.Tags = make([]string, 0, len(tags))
-
 		for _, tag := range tags {
 			if tagStr, ok := tag.(string); ok {
 				operation.Tags = append(operation.Tags, tagStr)
 			}
+		}
+	}
+
+	// Parse parameters.
+	if params, ok := op["parameters"].([]any); ok {
+		operation.Parameters = parseParameters(params)
+	}
+
+	// Parse requestBody.
+	if body, ok := op["requestBody"].(map[string]any); ok {
+		operation.RequestBody = parseRequestBody(body)
+	}
+
+	// Parse responses.
+	if responses, ok := op["responses"].(map[string]any); ok {
+		operation.Responses = parseResponses(responses)
+	}
+
+	// Parse security.
+	if security, ok := op["security"].([]any); ok {
+		operation.Security = parseSecurity(security)
+	}
+
+	// Parse deprecated.
+	if deprecated, ok := op["deprecated"].(bool); ok {
+		operation.Deprecated = deprecated
+	}
+
+	// Parse extensions.
+	for key, value := range op {
+		if strings.HasPrefix(key, "x-") {
+			operation.Extensions[key] = value
 		}
 	}
 
@@ -353,6 +408,7 @@ func parseComponents(components map[string]any) *Components {
 		Responses:       make(map[string]Response),
 		Parameters:      make(map[string]Parameter),
 		RequestBodies:   make(map[string]RequestBody),
+		Headers:         make(map[string]Header),
 		SecuritySchemes: make(map[string]SecurityScheme),
 	}
 
@@ -365,6 +421,77 @@ func parseComponents(components map[string]any) *Components {
 		}
 	}
 
+	// Parse responses
+	if responses, ok := components["responses"].(map[string]any); ok {
+		for name, resp := range responses {
+			if respMap, ok := resp.(map[string]any); ok {
+				r := Response{}
+				if desc, ok := respMap["description"].(string); ok {
+					r.Description = desc
+				}
+				if content, ok := respMap["content"].(map[string]any); ok {
+					r.Content = parseMediaTypes(content)
+				}
+				if headers, ok := respMap["headers"].(map[string]any); ok {
+					r.Headers = parseHeaders(headers)
+				}
+				result.Responses[name] = r
+			}
+		}
+	}
+
+	// Parse parameters
+	if parameters, ok := components["parameters"].(map[string]any); ok {
+		for name, param := range parameters {
+			if paramMap, ok := param.(map[string]any); ok {
+				p := Parameter{}
+				if v, ok := paramMap["name"].(string); ok {
+					p.Name = v
+				}
+				if v, ok := paramMap["in"].(string); ok {
+					p.In = v
+				}
+				if v, ok := paramMap["description"].(string); ok {
+					p.Description = v
+				}
+				if v, ok := paramMap["required"].(bool); ok {
+					p.Required = v
+				}
+				if v, ok := paramMap["schema"].(map[string]any); ok {
+					p.Schema = v
+				}
+				if v, ok := paramMap["example"]; ok {
+					p.Example = v
+				}
+				result.Parameters[name] = p
+			}
+		}
+	}
+
+	// Parse requestBodies
+	if requestBodies, ok := components["requestBodies"].(map[string]any); ok {
+		for name, body := range requestBodies {
+			if bodyMap, ok := body.(map[string]any); ok {
+				rb := RequestBody{}
+				if desc, ok := bodyMap["description"].(string); ok {
+					rb.Description = desc
+				}
+				if req, ok := bodyMap["required"].(bool); ok {
+					rb.Required = req
+				}
+				if content, ok := bodyMap["content"].(map[string]any); ok {
+					rb.Content = parseMediaTypes(content)
+				}
+				result.RequestBodies[name] = rb
+			}
+		}
+	}
+
+	// Parse headers
+	if headers, ok := components["headers"].(map[string]any); ok {
+		result.Headers = parseHeaders(headers)
+	}
+
 	// Parse security schemes
 	if securitySchemes, ok := components["securitySchemes"].(map[string]any); ok {
 		for name, scheme := range securitySchemes {
@@ -373,31 +500,24 @@ func parseComponents(components map[string]any) *Components {
 				if t, ok := schemeMap["type"].(string); ok {
 					sec.Type = t
 				}
-
 				if desc, ok := schemeMap["description"].(string); ok {
 					sec.Description = desc
 				}
-
 				if n, ok := schemeMap["name"].(string); ok {
 					sec.Name = n
 				}
-
 				if in, ok := schemeMap["in"].(string); ok {
 					sec.In = in
 				}
-
 				if s, ok := schemeMap["scheme"].(string); ok {
 					sec.Scheme = s
 				}
-
 				if bf, ok := schemeMap["bearerFormat"].(string); ok {
 					sec.BearerFormat = bf
 				}
-
 				if oidc, ok := schemeMap["openIdConnectUrl"].(string); ok {
 					sec.OpenIdConnectURL = oidc
 				}
-
 				result.SecuritySchemes[name] = sec
 			}
 		}
@@ -424,6 +544,172 @@ func parseTags(tags []any) []Tag {
 		}
 	}
 
+	return result
+}
+
+// parseParameters parses an array of OpenAPI parameter objects.
+func parseParameters(params []any) []Parameter {
+	result := make([]Parameter, 0, len(params))
+	for _, p := range params {
+		paramMap, ok := p.(map[string]any)
+		if !ok {
+			continue
+		}
+		param := Parameter{}
+		if v, ok := paramMap["name"].(string); ok {
+			param.Name = v
+		}
+		if v, ok := paramMap["in"].(string); ok {
+			param.In = v
+		}
+		if v, ok := paramMap["description"].(string); ok {
+			param.Description = v
+		}
+		if v, ok := paramMap["required"].(bool); ok {
+			param.Required = v
+		}
+		if v, ok := paramMap["schema"].(map[string]any); ok {
+			param.Schema = v
+		}
+		if v, ok := paramMap["example"]; ok {
+			param.Example = v
+		}
+		result = append(result, param)
+	}
+	return result
+}
+
+// parseRequestBody parses an OpenAPI requestBody object.
+func parseRequestBody(body map[string]any) *RequestBody {
+	rb := &RequestBody{
+		Extensions: make(map[string]any),
+	}
+	if desc, ok := body["description"].(string); ok {
+		rb.Description = desc
+	}
+	if req, ok := body["required"].(bool); ok {
+		rb.Required = req
+	}
+	if content, ok := body["content"].(map[string]any); ok {
+		rb.Content = parseMediaTypes(content)
+	}
+	for key, value := range body {
+		if strings.HasPrefix(key, "x-") {
+			rb.Extensions[key] = value
+		}
+	}
+	return rb
+}
+
+// parseMediaTypes parses a map of media type objects.
+func parseMediaTypes(content map[string]any) map[string]MediaType {
+	result := make(map[string]MediaType, len(content))
+	for mediaType, mt := range content {
+		mtMap, ok := mt.(map[string]any)
+		if !ok {
+			continue
+		}
+		m := MediaType{}
+		if schema, ok := mtMap["schema"].(map[string]any); ok {
+			m.Schema = schema
+		}
+		if example, ok := mtMap["example"]; ok {
+			m.Example = example
+		}
+		if examples, ok := mtMap["examples"].(map[string]any); ok {
+			m.Examples = make(map[string]Example, len(examples))
+			for name, ex := range examples {
+				if exMap, ok := ex.(map[string]any); ok {
+					e := Example{}
+					if v, ok := exMap["summary"].(string); ok {
+						e.Summary = v
+					}
+					if v, ok := exMap["description"].(string); ok {
+						e.Description = v
+					}
+					if v, ok := exMap["value"]; ok {
+						e.Value = v
+					}
+					if v, ok := exMap["externalValue"].(string); ok {
+						e.ExternalValue = v
+					}
+					m.Examples[name] = e
+				}
+			}
+		}
+		result[mediaType] = m
+	}
+	return result
+}
+
+// parseResponses parses a map of OpenAPI response objects.
+func parseResponses(responses map[string]any) map[string]Response {
+	result := make(map[string]Response, len(responses))
+	for status, resp := range responses {
+		respMap, ok := resp.(map[string]any)
+		if !ok {
+			continue
+		}
+		r := Response{}
+		if desc, ok := respMap["description"].(string); ok {
+			r.Description = desc
+		}
+		if content, ok := respMap["content"].(map[string]any); ok {
+			r.Content = parseMediaTypes(content)
+		}
+		if headers, ok := respMap["headers"].(map[string]any); ok {
+			r.Headers = parseHeaders(headers)
+		}
+		result[status] = r
+	}
+	return result
+}
+
+// parseHeaders parses a map of OpenAPI header objects.
+func parseHeaders(headers map[string]any) map[string]Header {
+	result := make(map[string]Header, len(headers))
+	for name, h := range headers {
+		hMap, ok := h.(map[string]any)
+		if !ok {
+			continue
+		}
+		header := Header{}
+		if desc, ok := hMap["description"].(string); ok {
+			header.Description = desc
+		}
+		if schema, ok := hMap["schema"].(map[string]any); ok {
+			header.Schema = schema
+		}
+		result[name] = header
+	}
+	return result
+}
+
+// parseSecurity parses an array of OpenAPI security requirement objects.
+func parseSecurity(security []any) []map[string][]string {
+	result := make([]map[string][]string, 0, len(security))
+	for _, s := range security {
+		sMap, ok := s.(map[string]any)
+		if !ok {
+			continue
+		}
+		req := make(map[string][]string, len(sMap))
+		for name, scopes := range sMap {
+			scopeArr, ok := scopes.([]any)
+			if !ok {
+				req[name] = []string{}
+				continue
+			}
+			scopeStrs := make([]string, 0, len(scopeArr))
+			for _, scope := range scopeArr {
+				if str, ok := scope.(string); ok {
+					scopeStrs = append(scopeStrs, str)
+				}
+			}
+			req[name] = scopeStrs
+		}
+		result = append(result, req)
+	}
 	return result
 }
 
@@ -483,13 +769,19 @@ func PrefixComponentNames(components *Components, prefix string) *Components {
 		Responses:       make(map[string]Response),
 		Parameters:      make(map[string]Parameter),
 		RequestBodies:   make(map[string]RequestBody),
+		Headers:         make(map[string]Header),
 		SecuritySchemes: make(map[string]SecurityScheme),
 	}
 
-	// Prefix schema names
+	// Prefix schema names and rewrite $ref strings within schemas
 	for name, schema := range components.Schemas {
 		prefixedName := prefix + "_" + name
-		result.Schemas[prefixedName] = schema
+		rewritten := RewriteRefs(schema, prefix)
+		if rewrittenMap, ok := rewritten.(map[string]any); ok {
+			result.Schemas[prefixedName] = rewrittenMap
+		} else {
+			result.Schemas[prefixedName] = schema
+		}
 	}
 
 	// Prefix other components
@@ -505,10 +797,71 @@ func PrefixComponentNames(components *Components, prefix string) *Components {
 		result.RequestBodies[prefix+"_"+name] = body
 	}
 
+	for name, header := range components.Headers {
+		result.Headers[prefix+"_"+name] = header
+	}
+
 	// Security schemes typically don't need prefixing (shared across services)
 	maps.Copy(result.SecuritySchemes, components.SecuritySchemes)
 
 	return result
+}
+
+// RewriteRefs recursively walks a schema value and rewrites $ref strings
+// that point to local components. After component names are prefixed,
+// references like "#/components/schemas/Foo" must become "#/components/schemas/prefix_Foo".
+func RewriteRefs(value any, prefix string) any {
+	if prefix == "" {
+		return value
+	}
+
+	switch v := value.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(v))
+		for key, val := range v {
+			if key == "$ref" {
+				if refStr, ok := val.(string); ok {
+					result[key] = rewriteRefString(refStr, prefix)
+				} else {
+					result[key] = val
+				}
+			} else {
+				result[key] = RewriteRefs(val, prefix)
+			}
+		}
+		return result
+
+	case []any:
+		result := make([]any, len(v))
+		for i, item := range v {
+			result[i] = RewriteRefs(item, prefix)
+		}
+		return result
+
+	default:
+		return value
+	}
+}
+
+// rewriteRefString rewrites a single $ref string if it points to a local component.
+// "#/components/schemas/Foo" → "#/components/schemas/prefix_Foo"
+func rewriteRefString(ref, prefix string) string {
+	componentPrefixes := []string{
+		"#/components/schemas/",
+		"#/components/responses/",
+		"#/components/parameters/",
+		"#/components/requestBodies/",
+		"#/components/headers/",
+	}
+
+	for _, cp := range componentPrefixes {
+		if strings.HasPrefix(ref, cp) {
+			name := strings.TrimPrefix(ref, cp)
+			return cp + prefix + "_" + name
+		}
+	}
+
+	return ref
 }
 
 // PrefixTags adds prefix to operation tags.

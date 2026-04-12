@@ -56,10 +56,10 @@ type Config struct {
 // ConsulDiscovery implements discovery.ServiceDiscovery using Consul.
 // It also implements farp.StorageBackend for KV operations.
 type ConsulDiscovery struct {
-	client    *consulapi.Client
-	config    Config
-	mu        sync.RWMutex
-	closed    bool
+	client *consulapi.Client
+	config Config
+	mu     sync.RWMutex
+	closed bool
 }
 
 // New creates a new Consul-based discovery backend.

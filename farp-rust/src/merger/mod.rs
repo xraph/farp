@@ -34,6 +34,10 @@ pub struct MergerConfig {
     pub merged_version: String,
     /// Whether to include service tags in operations
     pub include_service_tags: bool,
+    /// When true, all operations from a service are grouped under a single
+    /// tag matching the service name, instead of prefixing individual tags.
+    /// Takes precedence over include_service_tags when both are true.
+    pub collapse_service_tags: bool,
     /// Whether to sort merged content alphabetically
     pub sort_output: bool,
     /// Custom server URLs for the merged spec
@@ -48,6 +52,7 @@ impl Default for MergerConfig {
             merged_description: "Merged API specification from multiple services".to_string(),
             merged_version: "1.0.0".to_string(),
             include_service_tags: true,
+            collapse_service_tags: false,
             sort_output: true,
             servers: Vec::new(),
         }
@@ -254,9 +259,13 @@ impl Merger {
                     &operation_id_prefix,
                     &tag_prefix,
                     &service_name,
+                    self.config.collapse_service_tags,
                     &mut seen_operation_ids,
                     &mut result,
                 );
+
+                // Rewrite $ref strings to match prefixed component names
+                rewrite_path_item_refs(&mut path_item, &component_prefix);
 
                 result.spec.paths.insert(path.clone(), path_item);
                 seen_paths.insert(path, service_name.clone());
@@ -372,26 +381,40 @@ impl Merger {
             }
 
             // Merge tags
-            for mut tag in parsed.tags.clone() {
-                if !tag_prefix.is_empty() && self.config.include_service_tags {
-                    tag.name = format!("{}_{}", tag_prefix, tag.name);
+            if self.config.collapse_service_tags {
+                // Collapse all tags into a single service-level tag
+                let service_tag = Tag {
+                    name: service_name.clone(),
+                    description: Some(format!("Routes from {service_name}")),
+                    extensions: HashMap::new(),
+                };
+                if !seen_tags.contains_key(&service_tag.name) {
+                    seen_tags.insert(service_tag.name.clone(), service_tag.clone());
+                    result.spec.tags.push(service_tag);
                 }
-
-                if let Some(existing) = seen_tags.get(&tag.name) {
-                    // Merge descriptions
-                    if tag.description.is_some() && existing.description.is_none() {
-                        let mut updated = existing.clone();
-                        updated.description = tag.description;
-                        seen_tags.insert(tag.name.clone(), updated.clone());
-                        // Update in result as well
-                        if let Some(pos) = result.spec.tags.iter().position(|t| t.name == tag.name)
-                        {
-                            result.spec.tags[pos] = updated;
-                        }
+            } else {
+                for mut tag in parsed.tags.clone() {
+                    if !tag_prefix.is_empty() && self.config.include_service_tags {
+                        tag.name = format!("{}_{}", tag_prefix, tag.name);
                     }
-                } else {
-                    seen_tags.insert(tag.name.clone(), tag.clone());
-                    result.spec.tags.push(tag);
+
+                    if let Some(existing) = seen_tags.get(&tag.name) {
+                        // Merge descriptions
+                        if tag.description.is_some() && existing.description.is_none() {
+                            let mut updated = existing.clone();
+                            updated.description = tag.description;
+                            seen_tags.insert(tag.name.clone(), updated.clone());
+                            // Update in result as well
+                            if let Some(pos) =
+                                result.spec.tags.iter().position(|t| t.name == tag.name)
+                            {
+                                result.spec.tags[pos] = updated;
+                            }
+                        }
+                    } else {
+                        seen_tags.insert(tag.name.clone(), tag.clone());
+                        result.spec.tags.push(tag);
+                    }
                 }
             }
         }
