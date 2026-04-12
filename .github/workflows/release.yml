@@ -218,3 +218,72 @@ jobs:
           name: rust-docs
           path: farp-rust/target/doc/
 
+  # Go discovery module release
+  discovery-release:
+    name: Discovery Module Release
+    runs-on: ubuntu-latest
+    needs: release
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23'
+
+      - name: Check if discovery module exists
+        id: check_discovery
+        run: |
+          if [ -f "discovery/go.mod" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get latest tag
+        if: steps.check_discovery.outputs.exists == 'true'
+        id: get_tag
+        run: |
+          git fetch --tags
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Test discovery base module
+        if: steps.check_discovery.outputs.exists == 'true'
+        working-directory: discovery
+        run: |
+          go mod tidy
+          go vet ./...
+          go test -v -race ./...
+
+      - name: Test discovery sub-modules
+        if: steps.check_discovery.outputs.exists == 'true'
+        run: |
+          for dir in discovery/redis discovery/consul discovery/etcd discovery/kubernetes discovery/mdns; do
+            if [ -f "$dir/go.mod" ]; then
+              echo "=== Testing $dir ==="
+              cd "$dir"
+              go mod tidy
+              go vet ./...
+              go test -v -race ./...
+              cd "$GITHUB_WORKSPACE"
+            fi
+          done
+
+      - name: Verify all discovery modules
+        if: steps.check_discovery.outputs.exists == 'true'
+        run: |
+          for dir in discovery discovery/redis discovery/consul discovery/etcd discovery/kubernetes discovery/mdns; do
+            if [ -f "$dir/go.mod" ]; then
+              echo "=== Verifying $dir ==="
+              cd "$dir"
+              go mod verify
+              cd "$GITHUB_WORKSPACE"
+            fi
+          done
+
