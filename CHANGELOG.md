@@ -5,6 +5,19 @@ All notable changes to FARP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0](https://github.com/xraph/farp/compare/v1.2.0...v1.3.0) (2026-04-12)
+
+
+### Features
+
+* add discovery sub-module tagging to release workflow and create updatemod.sh script for Go module management ([ac0fe18](https://github.com/xraph/farp/commit/ac0fe18c2a91565bb48fd47e5ee729fd0bfeedfa))
+
+
+### Bug Fixes
+
+* improve comments for clarity and exclude gosec false positives in linting configuration ([fe6e3bd](https://github.com/xraph/farp/commit/fe6e3bdc1b855cb09bcd644562b50b3bfc7a4a9f))
+* update version compatibility tests and protocol constants to reflect version 1.2.0 ([2298e9f](https://github.com/xraph/farp/commit/2298e9fbeeed2d11e0ae8a44d304986d0432e0eb))
+
 ## [1.2.0](https://github.com/xraph/farp/compare/v1.1.0...v1.2.0) (2026-04-12)
 
 
