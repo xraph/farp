@@ -5,6 +5,23 @@ All notable changes to FARP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/xraph/farp/compare/v1.0.2...v1.1.0) (2026-04-12)
+
+
+### Features
+
+* add collapse_service_tags option to MergerConfig and implement default method for Merger ([6f1a987](https://github.com/xraph/farp/commit/6f1a9874c2a6e3a974ce94a510e2a7acd8de5979))
+* add path matching and rules for API route inclusion/exclusion ([52f9c46](https://github.com/xraph/farp/commit/52f9c4602a7cd011efabdc10c7f9c717be823a7d))
+* Enhance OpenAPI provider to build paths from application routes ([8407831](https://github.com/xraph/farp/commit/840783156bb70d2635d3de053cda2c8fe7e952af))
+* Enhance service routing capabilities with route table and checksum ([5f25ffb](https://github.com/xraph/farp/commit/5f25ffb4fda698e87544d275da3df30ea4be0d1e))
+* implement v1.1.0 service discovery, manifest route checksums, and extended specification documentation ([09ce459](https://github.com/xraph/farp/commit/09ce4596ad254fe645a481cc4eb04e5c48c53ce4))
+* update release workflow to support manual triggers and improve CI status checks ([3162b6c](https://github.com/xraph/farp/commit/3162b6ca6163f2b811e82016ce69af642f50e864))
+
+
+### Code Refactoring
+
+* clean up code by adding missing line breaks and comments for clarity ([d8fc45d](https://github.com/xraph/farp/commit/d8fc45d6e2e76c48fb543158d677a2c766825c84))
+
 ## [1.0.2](https://github.com/xraph/farp/compare/v1.0.1...v1.0.2) (2025-12-08)
 
 

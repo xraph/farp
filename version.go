@@ -2,26 +2,22 @@ package farp
 
 import "fmt"
 
-// Protocol version constants.
+// Protocol version constants
 const (
 	// ProtocolVersion is the current FARP protocol version (semver)
-	// v1.1.0: Added route table, routes checksum, atomic route swap,
-	// rate limiting, circuit breaker, CORS, observability, caching,
-	// load balancing, API versioning, middleware declarations,
-	// and graceful shutdown configuration.
 	ProtocolVersion = "1.1.0"
 
-	// ProtocolMajor is the major version.
+	// ProtocolMajor is the major version
 	ProtocolMajor = 1
 
-	// ProtocolMinor is the minor version.
+	// ProtocolMinor is the minor version
 	ProtocolMinor = 1
 
-	// ProtocolPatch is the patch version.
+	// ProtocolPatch is the patch version
 	ProtocolPatch = 0
 )
 
-// VersionInfo provides version information about the protocol.
+// VersionInfo provides version information about the protocol
 type VersionInfo struct {
 	// Version is the full semver string
 	Version string `json:"version"`
@@ -36,7 +32,7 @@ type VersionInfo struct {
 	Patch int `json:"patch"`
 }
 
-// GetVersion returns the current protocol version information.
+// GetVersion returns the current protocol version information
 func GetVersion() VersionInfo {
 	return VersionInfo{
 		Version: ProtocolVersion,
@@ -48,11 +44,10 @@ func GetVersion() VersionInfo {
 
 // IsCompatible checks if a manifest version is compatible with this protocol version
 // Compatible means the major version matches and the manifest's minor version
-// is less than or equal to the protocol's minor version.
+// is less than or equal to the protocol's minor version
 func IsCompatible(manifestVersion string) bool {
 	// Parse manifest version (simple parsing for semver)
 	var major, minor, patch int
-
 	_, err := fmt.Sscanf(manifestVersion, "%d.%d.%d", &major, &minor, &patch)
 	if err != nil {
 		return false
@@ -66,3 +61,4 @@ func IsCompatible(manifestVersion string) bool {
 	// Protocol must support manifest's minor version or higher
 	return minor <= ProtocolMinor
 }
+
