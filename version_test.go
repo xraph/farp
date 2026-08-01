@@ -1,6 +1,9 @@
 package farp
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestGetVersion(t *testing.T) {
 	version := GetVersion()
@@ -23,6 +26,8 @@ func TestGetVersion(t *testing.T) {
 }
 
 func TestIsCompatible(t *testing.T) {
+	// Cases are expressed relative to the protocol constants so a release bump
+	// does not invalidate them.
 	tests := []struct {
 		name            string
 		manifestVersion string
@@ -30,32 +35,32 @@ func TestIsCompatible(t *testing.T) {
 	}{
 		{
 			name:            "exact match",
-			manifestVersion: "1.0.0",
+			manifestVersion: ProtocolVersion,
 			want:            true,
 		},
 		{
 			name:            "same major, lower minor",
-			manifestVersion: "1.0.0",
+			manifestVersion: fmt.Sprintf("%d.0.0", ProtocolMajor),
 			want:            true,
 		},
 		{
 			name:            "same major, same minor",
-			manifestVersion: "1.2.0",
+			manifestVersion: fmt.Sprintf("%d.%d.0", ProtocolMajor, ProtocolMinor),
 			want:            true,
 		},
 		{
 			name:            "same major, higher minor",
-			manifestVersion: "1.3.0",
+			manifestVersion: fmt.Sprintf("%d.%d.0", ProtocolMajor, ProtocolMinor+1),
 			want:            false,
 		},
 		{
 			name:            "different major (higher)",
-			manifestVersion: "2.0.0",
+			manifestVersion: fmt.Sprintf("%d.0.0", ProtocolMajor+1),
 			want:            false,
 		},
 		{
 			name:            "different major (lower)",
-			manifestVersion: "0.9.0",
+			manifestVersion: fmt.Sprintf("%d.9.0", ProtocolMajor-1),
 			want:            false,
 		},
 		{
@@ -70,17 +75,17 @@ func TestIsCompatible(t *testing.T) {
 		},
 		{
 			name:            "partial version",
-			manifestVersion: "1.0",
+			manifestVersion: fmt.Sprintf("%d.0", ProtocolMajor),
 			want:            false,
 		},
 		{
 			name:            "version with extra parts",
-			manifestVersion: "1.0.0.0",
+			manifestVersion: fmt.Sprintf("%d.0.0.0", ProtocolMajor),
 			want:            true, // Sscanf will ignore extra parts
 		},
 		{
 			name:            "version with patch difference",
-			manifestVersion: "1.0.5",
+			manifestVersion: fmt.Sprintf("%d.0.5", ProtocolMajor),
 			want:            true,
 		},
 	}
@@ -95,20 +100,22 @@ func TestIsCompatible(t *testing.T) {
 }
 
 func TestProtocolConstants(t *testing.T) {
-	// Verify protocol version constants are set correctly
+	// The protocol major version is a deliberate, breaking-change-only decision,
+	// so it is pinned. Minor and patch are moved by release automation
+	// (scripts/update-version.sh) and are only checked for self-consistency.
 	if ProtocolMajor != 1 {
 		t.Errorf("ProtocolMajor = %v, want 1", ProtocolMajor)
 	}
 
-	if ProtocolMinor != 2 {
-		t.Errorf("ProtocolMinor = %v, want 2", ProtocolMinor)
+	if ProtocolMinor < 0 {
+		t.Errorf("ProtocolMinor = %v, want >= 0", ProtocolMinor)
 	}
 
-	if ProtocolPatch != 0 {
-		t.Errorf("ProtocolPatch = %v, want 0", ProtocolPatch)
+	if ProtocolPatch < 0 {
+		t.Errorf("ProtocolPatch = %v, want >= 0", ProtocolPatch)
 	}
 
-	expectedVersion := "1.2.0"
+	expectedVersion := fmt.Sprintf("%d.%d.%d", ProtocolMajor, ProtocolMinor, ProtocolPatch)
 	if ProtocolVersion != expectedVersion {
 		t.Errorf("ProtocolVersion = %v, want %v", ProtocolVersion, expectedVersion)
 	}

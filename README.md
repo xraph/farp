@@ -106,7 +106,7 @@ farp/
 ├── provider.go                  # Schema provider interface
 ├── registry.go                  # Schema registry interface
 ├── storage.go                   # Storage abstraction
-├── version.go                   # Protocol version (1.1.0)
+├── version.go                   # Protocol version constants
 └── farp-rust/                   # Rust implementation
 ```
 
