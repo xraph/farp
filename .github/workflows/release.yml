@@ -233,7 +233,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.23'
+          # discovery/etcd and discovery/mdns declare go 1.25.0, forced by
+          # golang.org/x/net, x/sys and x/text. setup-go pins GOTOOLCHAIN=local,
+          # so this must be >= the highest directive across the discovery modules.
+          go-version: '1.25'
 
       - name: Check if discovery module exists
         id: check_discovery
