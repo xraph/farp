@@ -18,7 +18,9 @@
       }
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -28,13 +30,19 @@
     "lint": "tsc --noEmit",
     "prepublishOnly": "pnpm build"
   },
-  "keywords": ["farp", "api-gateway", "service-discovery", "openapi", "schema-federation"],
+  "keywords": [
+    "farp",
+    "api-gateway",
+    "service-discovery",
+    "openapi",
+    "schema-federation"
+  ],
   "author": "Rex Raphael",
   "license": "MIT",
   "devDependencies": {
     "tsup": "^8.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^2.0.0"
+    "vitest": "^3.2.7"
   },
   "engines": {
     "node": ">=18.0.0"
