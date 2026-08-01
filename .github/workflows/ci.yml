@@ -102,7 +102,10 @@ jobs:
     with:
       working-directory: farp-rust
       run-extended: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      skip-audit: true
+      # Restores the per-PR `cargo doc` the pre-migration job ran. Without it a
+      # broken intra-doc link first surfaces at `cargo publish`.
+      build-docs: true
+      docs-artifact-name: farp-rust-docs
 
   # Example verification
   examples:
