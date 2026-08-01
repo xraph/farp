@@ -98,70 +98,11 @@ jobs:
   # Rust CI
   rust-test:
     name: Rust Tests
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v6
-
-      - name: Check if Cargo.toml exists
-        id: check_cargo
-        run: |
-          if [ -f "farp-rust/Cargo.toml" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set up Rust
-        if: steps.check_cargo.outputs.exists == 'true'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Cache Rust dependencies
-        if: steps.check_cargo.outputs.exists == 'true'
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: farp-rust
-
-      - name: Run cargo fmt check
-        if: steps.check_cargo.outputs.exists == 'true'
-        working-directory: farp-rust
-        run: cargo fmt --all -- --check
-
-      - name: Run clippy
-        if: steps.check_cargo.outputs.exists == 'true'
-        working-directory: farp-rust
-        run: cargo clippy --all-targets --all-features -- -W clippy::all
-
-      - name: Run tests
-        if: steps.check_cargo.outputs.exists == 'true'
-        working-directory: farp-rust
-        run: cargo test --all-features --verbose
-      
-      - name: Generate coverage
-        if: steps.check_cargo.outputs.exists == 'true'
-        working-directory: farp-rust
-        run: |
-          cargo install cargo-tarpaulin || true
-          cargo tarpaulin --all-features --workspace --timeout 300 --out Xml --output-dir coverage
-        continue-on-error: true
-      
-      - name: Upload coverage to Codecov
-        if: steps.check_cargo.outputs.exists == 'true'
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./farp-rust/coverage/cobertura.xml
-          flags: rust
-          name: rust-coverage
-        continue-on-error: true
-
-      - name: Run cargo doc
-        if: steps.check_cargo.outputs.exists == 'true'
-        working-directory: farp-rust
-        run: cargo doc --no-deps --all-features
+    uses: xraph/workflows/.github/workflows/rust-ci.yml@v1
+    with:
+      working-directory: farp-rust
+      run-extended: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      skip-audit: true
 
   # Example verification
   examples:
