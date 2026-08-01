@@ -95,6 +95,41 @@ jobs:
         with:
           sarif_file: results.sarif
 
+  # The discovery modules are separate Go modules, so `go test ./...` at the
+  # repo root never reaches them. Without this job their first build is the
+  # post-merge release, where a failure has already landed on main.
+  discovery:
+    name: Discovery Modules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          # discovery/etcd and discovery/mdns declare go 1.25.0. setup-go pins
+          # GOTOOLCHAIN=local, so this must be >= the highest directive across
+          # the discovery modules.
+          go-version: '1.25'
+          cache: true
+          cache-dependency-path: discovery/**/go.sum
+
+      - name: Vet and test every discovery module
+        run: |
+          set -uo pipefail
+          failed=0
+          while IFS= read -r modfile; do
+            dir=$(dirname "$modfile")
+            echo "=== $dir ==="
+            if ! ( cd "$dir" && go vet ./... && go test -race ./... ); then
+              echo "::error::discovery module $dir failed"
+              failed=1
+            fi
+          done < <(find discovery -name go.mod | sort)
+          exit $failed
+
   # Rust CI
   rust-test:
     name: Rust Tests
