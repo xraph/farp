@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/xraph/farp v1.1.0
-	github.com/xraph/farp/discovery v0.0.0
+	github.com/xraph/farp/discovery v1.3.1
 	go.etcd.io/etcd/client/v3 v3.5.17
 )
 

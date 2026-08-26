@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/xraph/farp v1.1.0
-	github.com/xraph/farp/discovery v0.0.0
+	github.com/xraph/farp/discovery v1.3.1
 )
 
 require (

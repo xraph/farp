@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/xraph/farp v1.1.0
-	github.com/xraph/farp/discovery v0.0.0
+	github.com/xraph/farp/discovery v1.3.1
 	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
 	k8s.io/client-go v0.31.0
